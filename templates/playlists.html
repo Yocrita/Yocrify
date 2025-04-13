@@ -120,30 +120,15 @@ function loadPlaylist(playlistId) {
 }
 
 function renderPlaylists(playlists) {
-    console.log('renderPlaylists called with:', playlists);
-    
-    const playlistList = document.getElementById('playlistList');
-    if (!playlistList) {
-        console.error('Playlist list element not found');
-        return;
-    }
+    console.log('Rendering playlists:', playlists);
+    const playlistContainer = document.getElementById('playlistList');
+    if (!playlistContainer) return;
 
-    // Ensure playlists is an array
-    if (!Array.isArray(playlists)) {
-        console.error('Playlists is not an array:', playlists);
-        playlists = [];
-    }
-
-    console.log(`Rendering ${playlists.length} playlists`);
-    
-    let html = '';
-    
     // Group playlists by folder
     const folders = {};
     const rootPlaylists = [];
-    
+
     playlists.forEach(playlist => {
-        console.log('Processing playlist:', playlist);
         const name = playlist.name;
         if (name.includes(' / ')) {
             const [folderName, playlistName] = name.split(' / ');
@@ -152,49 +137,59 @@ function renderPlaylists(playlists) {
             }
             folders[folderName].push({
                 ...playlist,
-                name: playlistName
+                name: playlistName // Store only the playlist name without folder
             });
         } else {
             rootPlaylists.push(playlist);
         }
     });
-    
-    console.log('Folders:', folders);
-    console.log('Root playlists:', rootPlaylists);
-    
-    // Render folders first
+
+    // Build HTML
+    let html = '';
+
+    // Render folders first (sorted alphabetically)
     Object.keys(folders).sort().forEach(folderName => {
-        const folderPlaylists = folders[folderName];
-        html += `
-            <div class="playlist-folder" data-folder="${escapeHtml(folderName)}">
-                <div class="folder-header">
-                    <i class="fas fa-folder"></i>
-                    ${escapeHtml(folderName)}
-                    <span class="playlist-count">${folderPlaylists.length}</span>
-                </div>
-                <div class="folder-content">
-        `;
-        
-        // Sort playlists within folder by name
-        folderPlaylists.sort((a, b) => a.name.localeCompare(b.name));
-        folderPlaylists.forEach(playlist => {
+        const folderPlaylists = folders[folderName].sort((a, b) => 
+            a.name.localeCompare(b.name, undefined, { numeric: true }));
+        html += renderPlaylistFolder(folderName, folderPlaylists);
+    });
+
+    // Then render root playlists (sorted alphabetically)
+    rootPlaylists.sort((a, b) => 
+        a.name.localeCompare(b.name, undefined, { numeric: true }))
+        .forEach(playlist => {
             html += renderPlaylistItem(playlist);
         });
-        
-        html += '</div></div>';
-    });
-    
-    // Then render root playlists
-    rootPlaylists.sort((a, b) => a.name.localeCompare(b.name));
-    rootPlaylists.forEach(playlist => {
-        html += renderPlaylistItem(playlist);
-    });
-    
-    console.log('Final HTML:', html);
-    playlistList.innerHTML = html;
-    
-    // Initialize tooltips for the new playlist items
+
+    playlistContainer.innerHTML = html;
     initializeTooltips();
+}
+
+function renderPlaylistFolder(folderName, playlists) {
+    return `
+        <div class="playlist-folder" data-folder="${escapeHtml(folderName)}">
+            <div class="folder-header" onclick="toggleFolder(this)">
+                <div class="folder-icon">
+                    <i class="fas fa-chevron-right folder-arrow"></i>
+                    <i class="fas fa-folder"></i>
+                </div>
+                <div class="folder-title">${escapeHtml(folderName)}</div>
+                <div class="folder-count">${playlists.length}</div>
+            </div>
+            <div class="folder-content collapsed">
+                ${playlists.map(playlist => renderPlaylistItem(playlist)).join('')}
+            </div>
+        </div>
+    `;
+}
+
+function toggleFolder(header) {
+    const folder = header.closest('.playlist-folder');
+    const content = folder.querySelector('.folder-content');
+    const arrow = folder.querySelector('.folder-arrow');
+    
+    content.classList.toggle('collapsed');
+    arrow.style.transform = content.classList.contains('collapsed') ? 'rotate(0deg)' : 'rotate(90deg)';
 }
 
 function renderPlaylistItem(playlist) {
@@ -634,84 +629,47 @@ function initializeTooltips() {
     });
 }
 
-function renderPlaylists(playlists) {
-    console.log('renderPlaylists called with:', playlists);
-    
-    const playlistContainer = document.getElementById('playlistList');
-    if (!playlistContainer) {
-        console.error('Playlist list element not found');
-        return;
-    }
+</script>
 
-    // Ensure playlists is an array
-    if (!Array.isArray(playlists)) {
-        console.error('Playlists is not an array:', playlists);
-        playlists = [];
-    }
+<script>
+function renderPlaylistItem(playlist) {
+    console.log('Rendering playlist item:', playlist);
+    
+    // Get the first image, or use a default
+    const image = playlist.images && playlist.images.length > 0 
+        ? playlist.images[0].url 
+        : 'https://via.placeholder.com/50';
+        
+    // Calculate songs that appear in other playlists
+    const duplicateSongsCount = playlist.tracks?.reduce((total, track) => 
+        total + (track.other_playlists?.length || 0), 0) || 0;
 
-    console.log(`Rendering ${playlists.length} playlists`);
-    
-    let html = '';
-    
-    // Group playlists by folder
-    const folders = {};
-    const rootPlaylists = [];
-    
-    playlists.forEach(playlist => {
-        console.log('Processing playlist:', playlist);
-        const name = playlist.name;
-        if (name.includes(' / ')) {
-            const [folderName, playlistName] = name.split(' / ');
-            if (!folders[folderName]) {
-                folders[folderName] = [];
-            }
-            folders[folderName].push({
-                ...playlist,
-                name: playlistName
-            });
-        } else {
-            rootPlaylists.push(playlist);
-        }
-    });
-    
-    console.log('Folders:', folders);
-    console.log('Root playlists:', rootPlaylists);
-    
-    // Render folders first
-    Object.keys(folders).sort().forEach(folderName => {
-        const folderPlaylists = folders[folderName];
-        html += `
-            <div class="playlist-folder" data-folder="${escapeHtml(folderName)}">
-                <div class="folder-header">
-                    <i class="fas fa-folder"></i>
-                    ${escapeHtml(folderName)}
-                    <span class="playlist-count">${folderPlaylists.length}</span>
+    return `
+        <div class="playlist-item" 
+             data-playlist-id="${escapeHtml(playlist.id)}"
+             onclick="loadPlaylist('${escapeHtml(playlist.id)}')"
+             data-hidden="false"
+             title="${escapeHtml(playlist.name)}">
+            <div class="playlist-item-content">
+                <div class="playlist-image">
+                    <img src="${escapeHtml(image)}" alt="${escapeHtml(playlist.name)}">
                 </div>
-                <div class="folder-content">
-        `;
-        
-        // Sort playlists within folder by name
-        folderPlaylists.sort((a, b) => a.name.localeCompare(b.name));
-        folderPlaylists.forEach(playlist => {
-            html += renderPlaylistItem(playlist);
-        });
-        
-        html += '</div></div>';
-    });
-    
-    // Then render root playlists
-    rootPlaylists.sort((a, b) => a.name.localeCompare(b.name));
-    rootPlaylists.forEach(playlist => {
-        html += renderPlaylistItem(playlist);
-    });
-    
-    console.log('Final HTML:', html);
-    playlistContainer.innerHTML = html;
-    
-    // Initialize tooltips for the new playlist items
-    initializeTooltips();
+                <div class="playlist-info">
+                    <div class="playlist-name">${escapeHtml(playlist.name)}</div>
+                    <div class="playlist-details">
+                        <span class="playlist-tracks">${playlist.tracks_total || 0} tracks</span>
+                        ${formatDuration(playlist.duration_ms || 0)}
+                    </div>
+                </div>
+                <div class="badge-container">
+                    ${duplicateSongsCount > 0 ? `
+                        <div class="duplicate-badge">${duplicateSongsCount}</div>
+                    ` : ''}
+                </div>
+            </div>
+        </div>
+    `;
 }
-
 </script>
 
 <style>
@@ -877,6 +835,73 @@ function renderPlaylists(playlists) {
 
 .playlist-folder[data-hidden="true"] {
     display: none;
+}
+
+/* Folder styles */
+.playlist-folder {
+    margin-bottom: 8px;
+}
+
+.folder-header {
+    display: flex;
+    align-items: center;
+    padding: 8px 8px;
+    cursor: pointer;
+    color: #fff;
+    transition: background-color 0.2s;
+}
+
+.folder-header:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.folder-icon {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: #b3b3b3;
+    width: 32px;
+}
+
+.folder-arrow {
+    transition: transform 0.2s;
+    font-size: 12px;
+}
+
+.folder-title {
+    margin-left: 4px;
+    font-weight: 500;
+    flex-grow: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.folder-count {
+    color: #b3b3b3;
+    font-size: 0.875rem;
+    margin-left: 8px;
+}
+
+.folder-content {
+    padding-left: 16px;
+    overflow: hidden;
+    max-height: none;
+    transition: max-height 0.3s ease-in-out;
+}
+
+.folder-content.collapsed {
+    max-height: 0;
+}
+
+/* Update playlist item margins inside folders */
+.folder-content .playlist-item {
+    margin-bottom: 1px;
+}
+
+/* Ensure proper spacing between sections */
+.playlist-item:not(.folder-content .playlist-item) {
+    margin-bottom: 2px;
 }
 
 /* Tooltip customization */

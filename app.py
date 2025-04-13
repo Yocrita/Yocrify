@@ -242,138 +242,82 @@ def logout():
 @app.route('/sync_library')
 def sync_library():
     try:
-        print("Starting sync process...")
         sp = get_spotify()
         if not sp:
-            print("No Spotify client - not authenticated")
-            return jsonify({'success': False, 'error': 'not_authenticated'})
+            return jsonify({'success': False, 'error': 'Not authenticated'})
 
-        print("Getting playlists...")
-        # Get all playlists
+        # Get all user playlists
         playlists = []
         offset = 0
         while True:
-            try:
-                results = sp.current_user_playlists(offset=offset)
-                if not results['items']:
-                    break
-                playlists.extend(results['items'])
-                offset += len(results['items'])
-                if offset >= results['total']:
-                    break
-            except Exception as e:
-                print(f"Error fetching playlists at offset {offset}: {str(e)}")
-                raise
+            results = sp.current_user_playlists(offset=offset)
+            if not results['items']:
+                break
+            
+            for playlist in results['items']:
+                # Get full playlist details including tracks
+                full_playlist = sp.playlist(playlist['id'])
+                
+                # Extract folder name if present (format: "folder / playlist")
+                name_parts = full_playlist['name'].split(' / ', 1)
+                folder = name_parts[0] if len(name_parts) > 1 else None
+                playlist_name = name_parts[1] if len(name_parts) > 1 else name_parts[0]
+                
+                playlist_data = {
+                    'id': full_playlist['id'],
+                    'name': full_playlist['name'],  # Keep original name with folder
+                    'images': full_playlist['images'],
+                    'tracks_total': full_playlist['tracks']['total'],
+                    'duration_ms': sum(track['track']['duration_ms'] for track in full_playlist['tracks']['items'] if track['track']),
+                    'tracks': [{'id': track['track']['id'], 
+                              'name': track['track']['name'],
+                              'other_playlists': []} for track in full_playlist['tracks']['items'] if track['track']]
+                }
+                playlists.append(playlist_data)
+            
+            offset += len(results['items'])
+            if len(results['items']) < 50:
+                break
 
-        print(f"Found {len(playlists)} playlists")
-
-        # First pass: build track to playlist mapping
+        # Create a map of track IDs to playlists for finding duplicates
         track_playlist_map = {}
         for playlist in playlists:
-            try:
-                offset = 0
-                while True:
-                    results = sp.playlist_tracks(playlist['id'], offset=offset)
-                    if not results['items']:
-                        break
-                        
-                    for item in results['items']:
-                        if item['track']:
-                            track = item['track']
-                            if track['id'] not in track_playlist_map:
-                                track_playlist_map[track['id']] = []
-                            track_playlist_map[track['id']].append({
-                                'id': playlist['id'],
-                                'name': playlist['name']
-                            })
-                    
-                    offset += len(results['items'])
-                    if offset >= results['total']:
-                        break
-            except Exception as e:
-                print(f"Error building track map for playlist {playlist['name']}: {str(e)}")
-                continue
+            for track in playlist['tracks']:
+                if track['id'] not in track_playlist_map:
+                    track_playlist_map[track['id']] = []
+                track_playlist_map[track['id']].append(playlist['id'])
 
-        # Get all tracks for each playlist and optimize the data
-        optimized_playlists = []
-        playlist_tracks = {}
-        
+        # Update tracks with other playlist information
         for playlist in playlists:
-            try:
-                print(f"Processing playlist: {playlist['name']}")
-                tracks = []
-                offset = 0
-                while True:
-                    try:
-                        results = sp.playlist_tracks(playlist['id'], offset=offset)
-                        if not results['items']:
-                            break
-                            
-                        # Extract only needed track information
-                        for item in results['items']:
-                            if item['track']:
-                                track = item['track']
-                                tracks.append({
-                                    'id': track['id'],
-                                    'name': track['name'],
-                                    'duration_ms': track['duration_ms'],
-                                    'artists': [{'name': artist['name'], 'id': artist['id']} for artist in track['artists']],
-                                    'album': {
-                                        'name': track['album']['name'],
-                                        'release_date': track['album'].get('release_date', ''),
-                                        'images': track['album'].get('images', [])
-                                    }
-                                })
-                        
-                        offset += len(results['items'])
-                        if offset >= results['total']:
-                            break
-                    except Exception as e:
-                        print(f"Error fetching tracks for playlist {playlist['name']} at offset {offset}: {str(e)}")
-                        raise
-                
-                print(f"Found {len(tracks)} tracks for playlist: {playlist['name']}")
-                
-                # Store full track list for this playlist with occurrence info
-                playlist_tracks[playlist['id']] = tracks
-                # Create optimized playlist data
-                optimized_playlists.append(optimize_playlist_data(playlist, tracks, track_playlist_map))
-            except Exception as e:
-                print(f"Error processing playlist {playlist['name']}: {str(e)}")
-                raise
+            for track in playlist['tracks']:
+                track['other_playlists'] = [p_id for p_id in track_playlist_map[track['id']] 
+                                          if p_id != playlist['id']]
 
-        print("Creating data structure...")
         # Save optimized data
         data = {
-            'playlists': optimized_playlists,
-            'tracks': playlist_tracks,
+            'playlists': playlists,
             'last_sync': int(time.time())
         }
-
-        print("Ensuring data directory exists...")
-        # Ensure data directory exists
-        data_dir = os.path.join(os.path.dirname(__file__), 'data')
-        os.makedirs(data_dir, exist_ok=True)
-
-        print("Getting current user...")
-        # Get current user's ID for the filename
-        current_user = sp.current_user()
-        user_id = current_user['id']
         
-        # Save data to user-specific file
-        file_path = os.path.join(data_dir, f'{user_id}.json')
-        with open(file_path, 'w', encoding='utf-8') as f:
+        # Save to user-specific file
+        user_id = session.get('user_id')
+        if not user_id:
+            return jsonify({'success': False, 'error': 'User ID not found in session'})
+            
+        filename = os.path.join('data', f'{user_id}.json')
+        os.makedirs('data', exist_ok=True)
+        
+        with open(filename, 'w') as f:
             json.dump(data, f)
 
-        print("Sync complete!")
         return jsonify({
             'success': True,
-            'playlists': optimized_playlists,
+            'playlists': playlists,
             'last_sync': data['last_sync']
         })
 
     except Exception as e:
-        print(f"Error during sync: {str(e)}")
+        print(f"Error in sync_library: {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/playlist/<playlist_id>')
