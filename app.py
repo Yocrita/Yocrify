@@ -248,14 +248,19 @@ def logout():
 @app.route('/sync_library')
 def sync_library():
     try:
-        sp = get_spotify()
-        if not sp:
-            return jsonify({'success': False, 'error': 'Not authenticated'})
+        # Check if user is authenticated
+        if 'token_info' not in session:
+            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
 
         # Get user ID from session
         user_id = session.get('user_id')
         if not user_id:
-            return jsonify({'success': False, 'error': 'User ID not found in session'})
+            return jsonify({'success': False, 'error': 'User ID not found in session'}), 400
+
+        # Get Spotify client
+        sp = get_spotify()
+        if not sp:
+            return jsonify({'success': False, 'error': 'Failed to create Spotify client'}), 500
 
         # Get all user playlists
         playlists = []
@@ -263,8 +268,13 @@ def sync_library():
         
         try:
             while True:
-                results = sp.current_user_playlists(offset=offset)
-                if not results['items']:
+                try:
+                    results = sp.current_user_playlists(offset=offset, limit=50)
+                except Exception as e:
+                    print(f"Error fetching playlists at offset {offset}: {str(e)}")
+                    return jsonify({'success': False, 'error': f"Error fetching playlists: {str(e)}"}), 502
+                
+                if not results or not results.get('items'):
                     break
                 
                 for playlist in results['items']:
@@ -284,7 +294,7 @@ def sync_library():
                         # Extract track information
                         if full_playlist.get('tracks', {}).get('items'):
                             for track in full_playlist['tracks']['items']:
-                                if track.get('track'):
+                                if track and track.get('track'):
                                     track_data = {
                                         'id': track['track']['id'],
                                         'name': track['track']['name'],
@@ -304,6 +314,9 @@ def sync_library():
                 offset += len(results['items'])
                 if len(results['items']) < 50:
                     break
+
+            if not playlists:
+                return jsonify({'success': False, 'error': 'No playlists found'}), 404
 
             # Create a map of track IDs to playlists for finding duplicates
             track_playlist_map = {}
@@ -328,26 +341,31 @@ def sync_library():
                 'last_sync': int(time.time())
             }
             
-            # Save to user-specific file
-            filename = os.path.join('data', f'{user_id}.json')
-            os.makedirs('data', exist_ok=True)
+            try:
+                # Save to user-specific file
+                filename = os.path.join('data', f'{user_id}.json')
+                os.makedirs('data', exist_ok=True)
+                
+                with open(filename, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False)
+            except Exception as e:
+                print(f"Error saving data: {str(e)}")
+                # Continue even if save fails - return data to client
             
-            with open(filename, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False)
-
-            return jsonify({
+            response = {
                 'success': True,
                 'playlists': playlists,
                 'last_sync': data['last_sync']
-            })
+            }
+            return jsonify(response), 200
 
         except Exception as e:
-            print(f"Error fetching playlists: {str(e)}")
-            return jsonify({'success': False, 'error': f"Error fetching playlists: {str(e)}"})
+            print(f"Error in playlist processing: {str(e)}")
+            return jsonify({'success': False, 'error': f"Error processing playlists: {str(e)}"}), 500
 
     except Exception as e:
         print(f"Error in sync_library: {str(e)}")
-        return jsonify({'success': False, 'error': str(e)})
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/playlist/<playlist_id>')
 def get_playlist(playlist_id):
