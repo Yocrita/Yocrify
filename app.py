@@ -301,66 +301,86 @@ def sync_library():
             logger.error("User ID not found in session")
             return make_response(jsonify({'success': False, 'error': 'User ID not found in session'}), 400)
 
-        # Get Spotify client
-        sp = get_spotify()
-        if not sp:
-            logger.error("Failed to create Spotify client")
-            return make_response(jsonify({'success': False, 'error': 'Failed to create Spotify client'}), 500)
+        # Get Spotify client with retries
+        retry_count = 0
+        max_retries = 3
+        while retry_count < max_retries:
+            try:
+                sp = get_spotify()
+                if sp:
+                    break
+                retry_count += 1
+                time.sleep(1)  # Wait 1 second between retries
+            except Exception as e:
+                logger.error(f"Attempt {retry_count + 1} failed to create Spotify client: {str(e)}")
+                retry_count += 1
+                if retry_count == max_retries:
+                    return make_response(jsonify({'success': False, 'error': 'Failed to create Spotify client after retries'}), 500)
+                time.sleep(1)
 
-        # Get all user playlists
+        # Get all user playlists with pagination
         playlists = []
         offset = 0
+        limit = 20  # Reduced from 50 to avoid timeouts
         
         try:
             while True:
                 try:
                     logger.info(f"Fetching playlists at offset {offset}")
-                    results = sp.current_user_playlists(offset=offset, limit=50)
+                    results = sp.current_user_playlists(offset=offset, limit=limit)
+                    
+                    if not results or not results.get('items'):
+                        break
+                    
+                    # Process playlists in smaller batches
+                    for playlist in results['items']:
+                        try:
+                            # Add delay between playlist fetches to avoid rate limiting
+                            time.sleep(0.1)
+                            
+                            # Get full playlist details including tracks
+                            full_playlist = sp.playlist(playlist['id'])
+                            
+                            # Extract basic playlist info
+                            playlist_data = {
+                                'id': playlist['id'],
+                                'name': playlist['name'],
+                                'description': playlist.get('description', ''),
+                                'images': playlist.get('images', []),
+                                'tracks': []
+                            }
+                            
+                            # Extract track information in batches
+                            if full_playlist.get('tracks', {}).get('items'):
+                                for track in full_playlist['tracks']['items']:
+                                    if track and track.get('track'):
+                                        track_data = {
+                                            'id': track['track']['id'],
+                                            'name': track['track']['name'],
+                                            'duration_ms': track['track'].get('duration_ms', 0),
+                                            'artists': [artist['name'] for artist in track['track'].get('artists', [])],
+                                            'album': track['track'].get('album', {}).get('name', ''),
+                                            'release_date': track['track'].get('album', {}).get('release_date', ''),
+                                            'other_playlists': []
+                                        }
+                                        playlist_data['tracks'].append(track_data)
+                            
+                            playlists.append(playlist_data)
+                            logger.info(f"Successfully processed playlist {playlist['id']}")
+                            
+                        except Exception as e:
+                            logger.error(f"Error processing playlist {playlist['id']}: {str(e)}")
+                            continue
+                    
+                    offset += len(results['items'])
+                    if len(results['items']) < limit:
+                        break
+                        
                 except Exception as e:
                     logger.error(f"Error fetching playlists at offset {offset}: {str(e)}")
-                    return make_response(jsonify({'success': False, 'error': f"Error fetching playlists: {str(e)}"}), 502)
-                
-                if not results or not results.get('items'):
-                    break
-                
-                for playlist in results['items']:
-                    try:
-                        # Get full playlist details including tracks
-                        full_playlist = sp.playlist(playlist['id'])
-                        
-                        # Extract basic playlist info
-                        playlist_data = {
-                            'id': playlist['id'],
-                            'name': playlist['name'],
-                            'description': playlist.get('description', ''),
-                            'images': playlist.get('images', []),
-                            'tracks': []
-                        }
-                        
-                        # Extract track information
-                        if full_playlist.get('tracks', {}).get('items'):
-                            for track in full_playlist['tracks']['items']:
-                                if track and track.get('track'):
-                                    track_data = {
-                                        'id': track['track']['id'],
-                                        'name': track['track']['name'],
-                                        'duration_ms': track['track'].get('duration_ms', 0),
-                                        'artists': [artist['name'] for artist in track['track'].get('artists', [])],
-                                        'album': track['track'].get('album', {}).get('name', ''),
-                                        'release_date': track['track'].get('album', {}).get('release_date', ''),
-                                        'other_playlists': []
-                                    }
-                                    playlist_data['tracks'].append(track_data)
-                        
-                        playlists.append(playlist_data)
-                        logger.info(f"Successfully processed playlist {playlist['id']}")
-                    except Exception as e:
-                        logger.error(f"Error processing playlist {playlist['id']}: {str(e)}")
-                        continue
-                
-                offset += len(results['items'])
-                if len(results['items']) < 50:
-                    break
+                    # Retry this batch
+                    time.sleep(1)
+                    continue
 
             if not playlists:
                 logger.warning("No playlists found")
@@ -395,7 +415,7 @@ def sync_library():
                 os.makedirs('data', exist_ok=True)
                 
                 with open(filename, 'w', encoding='utf-8') as f:
-                    json.dump(data, f, ensure_ascii=False)
+                    json.dump(data, f, ensure_ascii=False, indent=2)  # Added indent for better formatting
                 logger.info(f"Successfully saved data for user {user_id}")
             except Exception as e:
                 logger.error(f"Error saving data: {str(e)}")
@@ -406,6 +426,7 @@ def sync_library():
                 'playlists': playlists,
                 'last_sync': data['last_sync']
             }
+            
             logger.info("Sync completed successfully")
             return make_response(jsonify(response), 200)
 
