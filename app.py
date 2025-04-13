@@ -192,6 +192,18 @@ def format_duration(ms):
         return f"{hours}h {minutes}m"
     return f"{minutes}m {seconds}s"
 
+def get_git_version():
+    try:
+        with open('.git/refs/heads/main', 'r') as f:
+            return f.read().strip()[:7]  # Get first 7 characters of commit hash
+    except Exception as e:
+        print(f"Error getting git version: {str(e)}")
+        return 'unknown'
+
+@app.context_processor
+def inject_git_version():
+    return dict(git_version=get_git_version())
+
 @app.route('/')
 def index():
     sp = get_spotify()
