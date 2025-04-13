@@ -288,27 +288,32 @@ def logout():
 
 @app.route('/sync_library')
 def sync_library():
+    print("\n=== Starting sync_library ===")
     try:
         # First check authentication
         sp = get_spotify()
         if not sp:
             print("User not authenticated")
-            return jsonify({
+            response = {
                 'success': False,
                 'error': 'Not authenticated. Please log in again.',
                 'redirect': url_for('login')
-            }), 401
+            }
+            print("Returning response:", response)
+            return jsonify(response), 401
 
         # Get user info first
         try:
             user_info = sp.current_user()
             if not user_info or 'id' not in user_info:
                 print("Could not get user info")
-                return jsonify({
+                response = {
                     'success': False,
                     'error': 'Could not get user info. Please try logging in again.',
                     'redirect': url_for('login')
-                }), 401
+                }
+                print("Returning response:", response)
+                return jsonify(response), 401
                 
             user_id = user_info['id']
             session['user_id'] = user_id
@@ -316,11 +321,13 @@ def sync_library():
             
         except Exception as e:
             print(f"Error getting user info: {str(e)}")
-            return jsonify({
+            response = {
                 'success': False,
                 'error': 'Failed to get user info. Please try logging in again.',
                 'redirect': url_for('login')
-            }), 401
+            }
+            print("Returning response:", response)
+            return jsonify(response), 401
 
         # Check data directory
         if not os.path.exists(DATA_DIR):
@@ -329,10 +336,12 @@ def sync_library():
                 os.makedirs(DATA_DIR, exist_ok=True)
             except Exception as e:
                 print(f"Failed to create data directory: {str(e)}")
-                return jsonify({
+                response = {
                     'success': False,
                     'error': 'Server storage is not accessible. Please try again later.'
-                }), 500
+                }
+                print("Returning response:", response)
+                return jsonify(response), 500
             
         # Test write permissions
         test_file = os.path.join(DATA_DIR, 'test.txt')
@@ -343,10 +352,12 @@ def sync_library():
             print("Data directory is writable")
         except Exception as e:
             print(f"Data directory is not writable: {str(e)}")
-            return jsonify({
+            response = {
                 'success': False,
                 'error': 'Server storage is not accessible. Please try again later.'
-            }), 500
+            }
+            print("Returning response:", response)
+            return jsonify(response), 500
 
         # Initialize empty lists for all data
         playlists = []
@@ -359,10 +370,12 @@ def sync_library():
             results = fetch_with_retry(sp.current_user_playlists)
             if not results:
                 print("Failed to fetch playlists")
-                return jsonify({
+                response = {
                     'success': False,
                     'error': 'Failed to fetch playlists. Please try again.'
-                }), 500
+                }
+                print("Returning response:", response)
+                return jsonify(response), 500
             
             print(f"Found {len(results['items'])} playlists")
             
@@ -375,7 +388,7 @@ def sync_library():
                             'id': item['id'],
                             'name': item['name'],
                             'description': item.get('description', ''),
-                            'image': item['images'][0]['url'] if item['images'] else None,
+                            'image': item['images'][0]['url'] if item.get('images') else None,
                             'tracks': []
                         }
                         playlists.append(playlist_data)
@@ -404,31 +417,39 @@ def sync_library():
                 print("Data saved successfully")
             except Exception as e:
                 print(f"Error saving data: {str(e)}")
-                return jsonify({
+                response = {
                     'success': False,
                     'error': 'Failed to save data. Please try again.'
-                }), 500
+                }
+                print("Returning response:", response)
+                return jsonify(response), 500
             
             print("Sync completed successfully")
-            return jsonify({
+            response = {
                 'success': True,
                 'playlists': playlists,
                 'last_sync': data['last_sync']
-            })
+            }
+            print("Returning response:", response)
+            return jsonify(response)
             
         except Exception as e:
             print(f"Error in playlist sync: {str(e)}")
-            return jsonify({
+            response = {
                 'success': False,
                 'error': 'Failed to sync playlists. Please try again.'
-            }), 500
+            }
+            print("Returning response:", response)
+            return jsonify(response), 500
             
     except Exception as e:
         print(f"Error in sync_library: {str(e)}")
-        return jsonify({
+        response = {
             'success': False,
             'error': 'An unexpected error occurred. Please try again.'
-        }), 500
+        }
+        print("Returning response:", response)
+        return jsonify(response), 500
 
 @app.route('/playlist/<playlist_id>')
 def get_playlist(playlist_id):

@@ -501,25 +501,31 @@ function updateSyncButtonState() {
 async function syncData() {
     showLoading(true);
     try {
+        console.log('Starting sync...');
         const response = await fetch('/sync_library');
-        let data;
+        console.log('Got response:', response.status);
         
+        let text;
         try {
-            const text = await response.text();
-            try {
-                data = JSON.parse(text);
-            } catch (e) {
-                console.error('Failed to parse JSON response:', text);
-                throw new Error('Server returned invalid JSON');
-            }
+            text = await response.text();
+            console.log('Response text:', text);
         } catch (e) {
             console.error('Failed to read response:', e);
             throw new Error('Failed to read server response');
         }
         
+        let data;
+        try {
+            data = JSON.parse(text);
+            console.log('Parsed data:', data);
+        } catch (e) {
+            console.error('Failed to parse JSON:', text);
+            throw new Error('Server returned invalid JSON');
+        }
+        
         if (!response.ok) {
             if (response.status === 401 && data && data.redirect) {
-                // Redirect to login if authentication failed
+                console.log('Redirecting to login...');
                 window.location.href = data.redirect;
                 return;
             }
@@ -527,9 +533,11 @@ async function syncData() {
         }
         
         if (data && data.success) {
-            showToast('Library synchronized successfully!');
+            console.log('Sync successful');
+            showToast('Library synced successfully!');
             window.location.reload(); // Reload to show new playlists
         } else {
+            console.error('Sync failed:', data);
             throw new Error(data?.error || 'Unknown error occurred');
         }
     } catch (error) {
@@ -1176,6 +1184,7 @@ function renderPlaylistItem(playlist) {
     background-color: rgba(255, 255, 255, 0.08);
     margin: 0 -16px;
     padding: 0 16px;
+    position: absolute;
 }
 
 .search-input-wrapper {
