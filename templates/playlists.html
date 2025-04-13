@@ -500,29 +500,31 @@ function updateSyncButtonState() {
 
 async function syncData() {
     showLoading(true);
-    fetch('/sync_library')
-        .then(response => response.json())
-        .then(data => {
-            showLoading(false);
-            if (data.success) {
-                window.initialData.playlists = data.playlists;
-                window.initialData.lastSync = data.last_sync;
-                renderPlaylists(data.playlists);
-                updateSyncButtonState();
-                showToast('Library synchronized successfully!');
+    try {
+        const response = await fetch('/sync_library');
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        showLoading(false);
+        if (data.success) {
+            window.initialData.playlists = data.playlists;
+            window.initialData.lastSync = data.last_sync;
+            renderPlaylists(data.playlists);
+            updateSyncButtonState();
+            showToast('Library synchronized successfully!');
+        } else {
+            if (data.error === 'not_authenticated') {
+                window.location.href = '/login';
             } else {
-                if (data.error === 'not_authenticated') {
-                    window.location.href = '/login';
-                } else {
-                    showToast('Failed to sync library. Please try again.', true);
-                }
+                showToast('Failed to sync library: ' + data.error, true);
             }
-        })
-        .catch(error => {
-            showLoading(false);
-            showToast('Failed to sync library. Please try again.', true);
-            console.error('Error:', error);
-        });
+        }
+    } catch (error) {
+        showLoading(false);
+        showToast('Failed to sync library. Please try again.', true);
+        console.error('Error:', error);
+    }
 }
 
 function filterTracks(searchTerm) {
