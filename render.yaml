@@ -2,7 +2,10 @@ services:
   - type: web
     name: yocrify
     env: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: |
+      mkdir -p /data
+      chmod 777 /data
+      pip install -r requirements.txt
     startCommand: gunicorn app:app
     envVars:
       - key: FLASK_SECRET_KEY

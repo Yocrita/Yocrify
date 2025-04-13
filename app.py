@@ -246,8 +246,25 @@ def logout():
 @app.route('/sync_library')
 def sync_library():
     try:
+        # Check data directory
+        if not os.path.exists('/data'):
+            print("Data directory does not exist, creating...")
+            os.makedirs('/data', exist_ok=True)
+            
+        # Test write permissions
+        test_file = os.path.join('/data', 'test.txt')
+        try:
+            with open(test_file, 'w') as f:
+                f.write('test')
+            os.remove(test_file)
+            print("Data directory is writable")
+        except Exception as e:
+            print(f"Data directory is not writable: {str(e)}")
+            return jsonify({'success': False, 'error': 'Data storage is not accessible'}), 500
+
         sp = get_spotify()
         if not sp:
+            print("User not authenticated")
             return jsonify({'success': False, 'error': 'Not authenticated'}), 401
 
         # Get user ID for data storage
@@ -255,6 +272,7 @@ def sync_library():
             user_info = sp.current_user()
             user_id = user_info['id']
             session['user_id'] = user_id
+            print(f"Got user ID: {user_id}")
         except Exception as e:
             print(f"Error getting user info: {str(e)}")
             return jsonify({'success': False, 'error': 'Failed to get user info'}), 401
@@ -266,13 +284,17 @@ def sync_library():
         
         try:
             # Get user's playlists with retry
+            print("Fetching user playlists...")
             results = fetch_with_retry(sp.current_user_playlists)
             if not results:
+                print("Failed to fetch playlists")
                 return jsonify({'success': False, 'error': 'Failed to fetch playlists'}), 500
             
+            print(f"Found {len(results['items'])} playlists")
             while True:
                 for item in results['items']:
                     try:
+                        print(f"Fetching playlist {item['id']}...")
                         # Get full playlist data with retry
                         full_playlist = fetch_with_retry(sp.playlist, item['id'])
                         if not full_playlist:
@@ -291,10 +313,11 @@ def sync_library():
                         # Get all tracks for this playlist
                         tracks = []
                         track_results = full_playlist['tracks']
+                        track_count = 0
                         
                         while track_results:
                             for track_item in track_results['items']:
-                                if track_item.get('track'):  # Ensure track exists
+                                if track_item and track_item.get('track'):
                                     track = track_item['track']
                                     track_data = {
                                         'id': track['id'],
@@ -305,6 +328,7 @@ def sync_library():
                                         'image': track['album']['images'][0]['url'] if track['album']['images'] else None
                                     }
                                     tracks.append(track_data)
+                                    track_count += 1
                                     
                                     # Update track-playlist mapping
                                     if track['id'] not in track_playlist_map:
@@ -317,9 +341,12 @@ def sync_library():
                             if not track_results.get('next'):
                                 break
                                 
+                            print(f"Fetching next page of tracks for playlist {item['id']}...")
                             track_results = fetch_with_retry(sp.next, track_results)
                             if not track_results:
                                 break
+                        
+                        print(f"Found {track_count} tracks in playlist {item['name']}")
                         
                         # Store tracks for this playlist
                         all_tracks[item['id']] = tracks
@@ -333,11 +360,13 @@ def sync_library():
                 if not results.get('next'):
                     break
                     
+                print("Fetching next page of playlists...")
                 results = fetch_with_retry(sp.next, results)
                 if not results:
                     break
             
             # Save optimized data
+            print("Saving data...")
             data = {
                 'playlists': playlists,
                 'tracks': all_tracks,
@@ -347,10 +376,12 @@ def sync_library():
             # Save to user-specific file
             try:
                 save_user_data(user_id, data)
+                print("Data saved successfully")
             except Exception as e:
                 print(f"Error saving user data: {str(e)}")
                 return jsonify({'success': False, 'error': 'Failed to save data'}), 500
             
+            print("Sync completed successfully")
             return jsonify({
                 'success': True,
                 'playlists': playlists,
