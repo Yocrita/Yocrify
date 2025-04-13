@@ -847,7 +847,7 @@ function renderPlaylistItem(playlist) {
     font-size: 14px;
     font-weight: 400;
     letter-spacing: 0.25px;
-    transition: all 0.2s ease;
+    transition: all 0.2s;
 }
 
 .form-control:focus {
@@ -866,38 +866,49 @@ function renderPlaylistItem(playlist) {
 }
 
 .search-container {
-    padding: 8px 16px 24px 16px;
+    position: relative;
+    padding: 20px 8px 0 8px;
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 16px;  /* Add margin after the search container */
+}
+
+.search-separator {
+    width: 100%;
+    height: 1px;
+    background-color: rgba(255, 255, 255, 0.08);
+    margin: 0 -16px;
+    padding: 0 16px;
+    position: absolute;
+}
+
+.search-separator:first-child {
+    top: 0;  
+}
+
+.search-separator:last-child {
+    bottom: 0;  
 }
 
 .search-input-wrapper {
     position: relative;
     width: 85%;
-    transition: all 0.2s ease;
-}
-
-.search-icon {
-    position: absolute;
-    left: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #969696;
-    font-size: 14px;
-    pointer-events: none;
-    transition: color 0.2s ease;
-    background-color: rgba(255, 255, 255, 0.05);
-    padding: 4px;
-    border-radius: 50%;
+    display: flex;
+    gap: 1px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    padding: 2px;
+    margin-bottom: 24px;
 }
 
 #playlistSearch {
-    width: 100%;
-    height: 32px;
-    padding: 6px 36px 6px 36px;
-    border-radius: 4px;
+    flex: 1;
+    height: 28px;
+    padding: 6px 12px;
+    border-radius: 3px;
     border: none;
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(0, 0, 0, 0.2);  
     color: #fff;
     font-size: 14px;
     font-weight: 400;
@@ -911,21 +922,12 @@ function renderPlaylistItem(playlist) {
 }
 
 #playlistSearch:hover {
-    background-color: rgba(255, 255, 255, 0.15);
+    background-color: rgba(0, 0, 0, 0.3);
 }
 
 #playlistSearch:focus {
     outline: none;
-    background-color: #282828;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
-}
-
-#playlistSearch:focus + .search-icon {
-    color: #fff;
-}
-
-.search-input-wrapper:hover .search-icon {
-    color: #fff;
+    background-color: rgba(0, 0, 0, 0.4);
 }
 
 .library-header {
@@ -968,6 +970,14 @@ function renderPlaylistItem(playlist) {
 
 .sync-button i {
     font-size: 12px;
+}
+
+.sync-button.sync-today {
+    color: #1ed760;
+}
+
+.sync-button.sync-old {
+    color: #ff0000;
 }
 
 .playlist-item[data-hidden="true"] {
@@ -1135,7 +1145,6 @@ function renderPlaylistItem(playlist) {
 .btn-sync.sync-old {
     color: #ff0000;
 }
-
 .btn-sync i {
     font-size: 14px;
 }
@@ -1143,6 +1152,51 @@ function renderPlaylistItem(playlist) {
 .btn-sync span {
     font-size: 14px;
     font-weight: 500;
+}
+
+.search-separator {
+    width: 100%;
+    height: 1px;
+    background-color: rgba(255, 255, 255, 0.08);
+    margin: 0 -16px;
+    padding: 0 16px;
+}
+
+.search-input-wrapper {
+    position: relative;
+    width: 85%;
+    display: flex;
+    gap: 1px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    padding: 2px;
+    margin-bottom: 24px;
+}
+
+.search-icon-button {
+    background-color: rgba(255, 255, 255, 0.07);  
+    border: none;
+    border-radius: 3px;
+    width: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.search-icon-button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.search-icon {
+    color: #969696;
+    font-size: 14px;
+    transition: color 0.2s ease;
+}
+
+.search-icon-button:hover .search-icon {
+    color: #fff;
 }
 </style>
 
@@ -1164,10 +1218,14 @@ function renderPlaylistItem(playlist) {
 
             <!-- Search box -->
             <div class="search-container">
+                <div class="search-separator"></div>
                 <div class="search-input-wrapper">
-                    <i class="fas fa-search search-icon"></i>
+                    <button class="search-icon-button">
+                        <i class="fas fa-search search-icon"></i>
+                    </button>
                     <input type="text" id="playlistSearch" placeholder="Search in Your Library" oninput="filterPlaylists()">
                 </div>
+                <div class="search-separator"></div>
             </div>
 
             <!-- Library sections -->
