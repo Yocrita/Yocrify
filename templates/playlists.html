@@ -502,28 +502,28 @@ async function syncData() {
     showLoading(true);
     try {
         const response = await fetch('/sync_library');
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
         const data = await response.json();
-        showLoading(false);
-        if (data.success) {
-            window.initialData.playlists = data.playlists;
-            window.initialData.lastSync = data.last_sync;
-            renderPlaylists(data.playlists);
-            updateSyncButtonState();
-            showToast('Library synchronized successfully!');
-        } else {
-            if (data.error === 'not_authenticated') {
-                window.location.href = '/login';
-            } else {
-                showToast('Failed to sync library: ' + data.error, true);
+        
+        if (!response.ok) {
+            if (response.status === 401 && data.redirect) {
+                // Redirect to login if authentication failed
+                window.location.href = data.redirect;
+                return;
             }
+            throw new Error(data.error || `HTTP error! status: ${response.status}`);
+        }
+        
+        if (data.success) {
+            showToast('Library synchronized successfully!');
+            window.location.reload(); // Reload to show new playlists
+        } else {
+            throw new Error(data.error || 'Unknown error occurred');
         }
     } catch (error) {
+        console.error('Sync error:', error);
+        showToast('Failed to sync library', true);
+    } finally {
         showLoading(false);
-        showToast('Failed to sync library. Please try again.', true);
-        console.error('Error:', error);
     }
 }
 

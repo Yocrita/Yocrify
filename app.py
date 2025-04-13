@@ -41,36 +41,44 @@ def create_spotify_oauth():
         cache_path='.spotify_cache'  # Enable token caching
     )
 
-def get_spotify_client():
+def get_spotify():
+    """Get an authenticated Spotify client or None if not authenticated"""
     try:
-        if not session.get('token_info'):
-            # Try to get token from cache if available
-            sp_oauth = create_spotify_oauth()
-            token_info = sp_oauth.get_cached_token()
-            if token_info:
-                session['token_info'] = token_info
-            else:
-                return None
-        
+        if 'token_info' not in session:
+            print("No token info in session")
+            return None
+            
+        # Create Spotify client
         token_info = session['token_info']
         
-        # Check if token needs refresh
+        # Check if token is expired
         now = int(time.time())
         is_expired = token_info['expires_at'] - now < 60
         
         if is_expired:
-            sp_oauth = create_spotify_oauth()
-            token_info = sp_oauth.refresh_access_token(token_info['refresh_token'])
-            session['token_info'] = token_info
+            print("Token is expired, trying to refresh...")
+            try:
+                # Create a Spotify OAuth instance
+                sp_oauth = SpotifyOAuth(
+                    client_id=SPOTIFY_CLIENT_ID,
+                    client_secret=SPOTIFY_CLIENT_SECRET,
+                    redirect_uri=SPOTIFY_REDIRECT_URI,
+                    scope='playlist-read-private playlist-read-collaborative user-library-read'
+                )
+                
+                # Try to refresh the token
+                token_info = sp_oauth.refresh_access_token(token_info['refresh_token'])
+                session['token_info'] = token_info
+                print("Token refreshed successfully")
+            except Exception as e:
+                print(f"Error refreshing token: {str(e)}")
+                return None
+                
+        return spotipy.Spotify(auth=token_info['access_token'])
         
-        return spotipy.Spotify(auth=token_info['access_token'], requests_timeout=20)
     except Exception as e:
-        print(f"Error getting Spotify client: {str(e)}")
-        session.pop('token_info', None)  # Clear invalid token
+        print(f"Error in get_spotify: {str(e)}")
         return None
-
-def get_spotify():
-    return get_spotify_client()
 
 def fetch_with_retry(func, *args, max_retries=3, **kwargs):
     for attempt in range(max_retries):
@@ -269,6 +277,39 @@ def logout():
 @app.route('/sync_library')
 def sync_library():
     try:
+        # First check authentication
+        sp = get_spotify()
+        if not sp:
+            print("User not authenticated")
+            return jsonify({
+                'success': False,
+                'error': 'Not authenticated. Please log in again.',
+                'redirect': url_for('login')
+            }), 401
+
+        # Get user info first
+        try:
+            user_info = sp.current_user()
+            if not user_info or 'id' not in user_info:
+                print("Could not get user info")
+                return jsonify({
+                    'success': False,
+                    'error': 'Could not get user info. Please try logging in again.',
+                    'redirect': url_for('login')
+                }), 401
+                
+            user_id = user_info['id']
+            session['user_id'] = user_id
+            print(f"Got user ID: {user_id}")
+            
+        except Exception as e:
+            print(f"Error getting user info: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': 'Failed to get user info. Please try logging in again.',
+                'redirect': url_for('login')
+            }), 401
+
         # Check data directory
         if not os.path.exists(DATA_DIR):
             print("Data directory does not exist, creating...")
@@ -283,22 +324,10 @@ def sync_library():
             print("Data directory is writable")
         except Exception as e:
             print(f"Data directory is not writable: {str(e)}")
-            return jsonify({'success': False, 'error': 'Data storage is not accessible'}), 500
-
-        sp = get_spotify()
-        if not sp:
-            print("User not authenticated")
-            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
-
-        # Get user ID for data storage
-        try:
-            user_info = sp.current_user()
-            user_id = user_info['id']
-            session['user_id'] = user_id
-            print(f"Got user ID: {user_id}")
-        except Exception as e:
-            print(f"Error getting user info: {str(e)}")
-            return jsonify({'success': False, 'error': 'Failed to get user info'}), 401
+            return jsonify({
+                'success': False,
+                'error': 'Server storage is not accessible. Please try again later.'
+            }), 500
 
         # Initialize empty lists for all data
         playlists = []
