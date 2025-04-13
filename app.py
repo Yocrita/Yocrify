@@ -252,75 +252,98 @@ def sync_library():
         if not sp:
             return jsonify({'success': False, 'error': 'Not authenticated'})
 
-        # Get all user playlists
-        playlists = []
-        offset = 0
-        while True:
-            results = sp.current_user_playlists(offset=offset)
-            if not results['items']:
-                break
-            
-            for playlist in results['items']:
-                # Get full playlist details including tracks
-                full_playlist = sp.playlist(playlist['id'])
-                
-                # Extract folder name if present (format: "folder / playlist")
-                name_parts = full_playlist['name'].split(' / ', 1)
-                folder = name_parts[0] if len(name_parts) > 1 else None
-                playlist_name = name_parts[1] if len(name_parts) > 1 else name_parts[0]
-                
-                playlist_data = {
-                    'id': full_playlist['id'],
-                    'name': full_playlist['name'],  # Keep original name with folder
-                    'images': full_playlist['images'],
-                    'tracks_total': full_playlist['tracks']['total'],
-                    'duration_ms': sum(track['track']['duration_ms'] for track in full_playlist['tracks']['items'] if track['track']),
-                    'tracks': [{'id': track['track']['id'], 
-                              'name': track['track']['name'],
-                              'other_playlists': []} for track in full_playlist['tracks']['items'] if track['track']]
-                }
-                playlists.append(playlist_data)
-            
-            offset += len(results['items'])
-            if len(results['items']) < 50:
-                break
-
-        # Create a map of track IDs to playlists for finding duplicates
-        track_playlist_map = {}
-        for playlist in playlists:
-            for track in playlist['tracks']:
-                if track['id'] not in track_playlist_map:
-                    track_playlist_map[track['id']] = []
-                track_playlist_map[track['id']].append(playlist['id'])
-
-        # Update tracks with other playlist information
-        for playlist in playlists:
-            for track in playlist['tracks']:
-                track['other_playlists'] = [p_id for p_id in track_playlist_map[track['id']] 
-                                          if p_id != playlist['id']]
-
-        # Save optimized data
-        data = {
-            'playlists': playlists,
-            'last_sync': int(time.time())
-        }
-        
-        # Save to user-specific file
+        # Get user ID from session
         user_id = session.get('user_id')
         if not user_id:
             return jsonify({'success': False, 'error': 'User ID not found in session'})
-            
-        filename = os.path.join('data', f'{user_id}.json')
-        os.makedirs('data', exist_ok=True)
-        
-        with open(filename, 'w') as f:
-            json.dump(data, f)
 
-        return jsonify({
-            'success': True,
-            'playlists': playlists,
-            'last_sync': data['last_sync']
-        })
+        # Get all user playlists
+        playlists = []
+        offset = 0
+        
+        try:
+            while True:
+                results = sp.current_user_playlists(offset=offset)
+                if not results['items']:
+                    break
+                
+                for playlist in results['items']:
+                    try:
+                        # Get full playlist details including tracks
+                        full_playlist = sp.playlist(playlist['id'])
+                        
+                        # Extract basic playlist info
+                        playlist_data = {
+                            'id': playlist['id'],
+                            'name': playlist['name'],
+                            'description': playlist.get('description', ''),
+                            'images': playlist.get('images', []),
+                            'tracks': []
+                        }
+                        
+                        # Extract track information
+                        if full_playlist.get('tracks', {}).get('items'):
+                            for track in full_playlist['tracks']['items']:
+                                if track.get('track'):
+                                    track_data = {
+                                        'id': track['track']['id'],
+                                        'name': track['track']['name'],
+                                        'duration_ms': track['track'].get('duration_ms', 0),
+                                        'artists': [artist['name'] for artist in track['track'].get('artists', [])],
+                                        'album': track['track'].get('album', {}).get('name', ''),
+                                        'release_date': track['track'].get('album', {}).get('release_date', ''),
+                                        'other_playlists': []
+                                    }
+                                    playlist_data['tracks'].append(track_data)
+                        
+                        playlists.append(playlist_data)
+                    except Exception as e:
+                        print(f"Error processing playlist {playlist['id']}: {str(e)}")
+                        continue
+                
+                offset += len(results['items'])
+                if len(results['items']) < 50:
+                    break
+
+            # Create a map of track IDs to playlists for finding duplicates
+            track_playlist_map = {}
+            for playlist in playlists:
+                for track in playlist['tracks']:
+                    if track['id'] not in track_playlist_map:
+                        track_playlist_map[track['id']] = []
+                    track_playlist_map[track['id']].append({
+                        'id': playlist['id'],
+                        'name': playlist['name']
+                    })
+
+            # Update tracks with other playlist information
+            for playlist in playlists:
+                for track in playlist['tracks']:
+                    other_playlists = track_playlist_map.get(track['id'], [])
+                    track['other_playlists'] = [p for p in other_playlists if p['id'] != playlist['id']]
+
+            # Save optimized data
+            data = {
+                'playlists': playlists,
+                'last_sync': int(time.time())
+            }
+            
+            # Save to user-specific file
+            filename = os.path.join('data', f'{user_id}.json')
+            os.makedirs('data', exist_ok=True)
+            
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False)
+
+            return jsonify({
+                'success': True,
+                'playlists': playlists,
+                'last_sync': data['last_sync']
+            })
+
+        except Exception as e:
+            print(f"Error fetching playlists: {str(e)}")
+            return jsonify({'success': False, 'error': f"Error fetching playlists: {str(e)}"})
 
     except Exception as e:
         print(f"Error in sync_library: {str(e)}")
