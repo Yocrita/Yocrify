@@ -230,6 +230,12 @@ def callback():
     try:
         token_info = sp_oauth.get_access_token(code)
         session['token_info'] = token_info
+        
+        # Get and store user ID in session
+        sp = spotipy.Spotify(auth=token_info['access_token'])
+        user_info = sp.current_user()
+        session['user_id'] = user_info['id']
+        
         return redirect(url_for('index'))
     except Exception as e:
         return f"Error getting access token: {str(e)}"
