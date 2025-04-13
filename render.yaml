@@ -14,6 +14,6 @@ services:
       - key: SPOTIFY_REDIRECT_URI
         value: https://yocrify.onrender.com/callback
     disk:
-      name: data
-      mountPath: /opt/render/project/src/data
+      name: yocrify-data
+      mountPath: /data
       sizeGB: 1
