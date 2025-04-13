@@ -490,14 +490,10 @@ function updateSyncButtonState() {
     const now = Math.floor(Date.now() / 1000);
     
     // Check if last sync was today
-    const lastSyncDate = new Date(lastSync * 1000);
-    const todayDate = new Date();
+    const lastSyncDate = new Date(lastSync * 1000).setHours(0,0,0,0);
+    const todayDate = new Date().setHours(0,0,0,0);
     
-    const isSameDay = lastSyncDate.getFullYear() === todayDate.getFullYear() &&
-                     lastSyncDate.getMonth() === todayDate.getMonth() &&
-                     lastSyncDate.getDate() === todayDate.getDate();
-    
-    if (isSameDay) {
+    if (lastSyncDate === todayDate) {
         syncButton.classList.add('sync-today');
         syncButton.classList.remove('sync-old');
     } else {

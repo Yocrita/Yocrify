@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
+env/
 build/
 develop-eggs/
 dist/
@@ -23,8 +24,13 @@ wheels/
 # Virtual Environment
 venv/
 ENV/
-env/
+
+# Environment Variables
 .env
+
+# Local Data Storage
+data/
+*.json
 
 # IDE
 .idea/
@@ -32,11 +38,6 @@ env/
 *.swp
 *.swo
 
-# Application specific
-.spotify_cache
-data/*.json
-.cache
-python-installer.exe
-
-# Logs
-*.log
+# OS
+.DS_Store
+Thumbs.db

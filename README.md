@@ -1,58 +1,60 @@
-# Spotify Playlist Sync
+# Spotify Python App
 
-A Flask web application that syncs and manages your Spotify playlists.
+A Python web application that interacts with the Spotify API to display your music information, search tracks, and manage playlists.
 
 ## Features
 
-- OAuth2 authentication with Spotify
-- View all your playlists
-- Sync playlist data
-- Dark theme matching Spotify's design
+- View your top tracks and playlists
+- Search for tracks and artists
+- Create new playlists
+- Modern, responsive UI with dark theme
+- Secure authentication with Spotify
 
 ## Setup
 
-1. Clone this repository:
-```bash
-git clone https://github.com/yourusername/spotify-playlist-sync.git
-cd spotify-playlist-sync
-```
+1. Create a Spotify Developer account and register your application at https://developer.spotify.com/dashboard
+2. Get your Client ID and Client Secret
+3. Add `http://localhost:5000/callback` to your application's Redirect URIs in the Spotify Dashboard
+4. Copy the `.env.example` file to `.env` and fill in your Spotify credentials:
+   ```
+   SPOTIFY_CLIENT_ID=your_client_id_here
+   SPOTIFY_CLIENT_SECRET=your_client_secret_here
+   SPOTIFY_REDIRECT_URI=http://localhost:5000/callback
+   ```
 
-2. Create a virtual environment and install dependencies:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
+## Installation
 
-3. Create a `.env` file with your Spotify API credentials:
-```ini
-SPOTIFY_CLIENT_ID=your_client_id_here
-SPOTIFY_CLIENT_SECRET=your_client_secret_here
-SPOTIFY_REDIRECT_URI=http://localhost:5000/callback
-FLASK_SECRET_KEY=your_secret_key_here
-```
+1. Create a virtual environment:
+   ```bash
+   python -m venv venv
+   ```
+
+2. Activate the virtual environment:
+   - Windows:
+     ```bash
+     .\venv\Scripts\activate
+     ```
+   - Unix/MacOS:
+     ```bash
+     source venv/bin/activate
+     ```
+
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
 4. Run the application:
-```bash
-python app.py
-```
+   ```bash
+   python app.py
+   ```
 
-5. Open http://localhost:5000 in your browser
+5. Open your browser and navigate to `http://localhost:5000`
 
-## Environment Variables
+## Technologies Used
 
-- `SPOTIFY_CLIENT_ID`: Your Spotify application client ID
-- `SPOTIFY_CLIENT_SECRET`: Your Spotify application client secret
-- `SPOTIFY_REDIRECT_URI`: OAuth callback URL
-- `FLASK_SECRET_KEY`: Secret key for Flask sessions
-
-## Development
-
-The application is built with:
-- Flask (Python web framework)
-- Spotipy (Spotify Web API wrapper)
-- Bootstrap (Frontend styling)
-
-## License
-
-MIT License
+- Flask: Web framework
+- Spotipy: Spotify Web API wrapper for Python
+- Bootstrap 5: Frontend framework
+- Font Awesome: Icons
+- Python-dotenv: Environment variable management
