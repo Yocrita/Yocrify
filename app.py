@@ -14,7 +14,7 @@ app.secret_key = os.getenv('FLASK_SECRET_KEY', 'your-secret-key-here')  # Use co
 CORS(app)  # Enable CORS for all routes
 
 # Ensure data directory exists
-DATA_DIR = '/data'
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'user_data')
 try:
     os.makedirs(DATA_DIR, exist_ok=True)
     # Test write permissions
