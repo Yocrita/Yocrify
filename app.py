@@ -1,7 +1,7 @@
 import os
 import json
 import logging
-from flask import Flask, render_template, session, redirect, request, url_for, jsonify, make_response
+from flask import Flask, render_template, session, redirect, request, url_for, jsonify, make_response, send_from_directory
 from flask_cors import CORS
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
@@ -171,6 +171,18 @@ def format_duration(ms):
         return f"{hours}h {minutes}m"
     return f"{minutes}m {seconds}s"
 
+def validate_spotify_response(response, response_type="unknown"):
+    """Validate Spotify API response"""
+    if not response:
+        logger.error(f"Empty {response_type} response from Spotify API")
+        return False
+        
+    if not isinstance(response, dict):
+        logger.error(f"Invalid {response_type} response type from Spotify API: {type(response)}")
+        return False
+        
+    return True
+
 @app.after_request
 def after_request(response):
     response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
@@ -299,127 +311,199 @@ def sync_library():
         user_id = session.get('user_id')
         if not user_id:
             logger.error("User ID not found in session")
-            return make_response(jsonify({'success': False, 'error': 'User ID not found in session'}), 400)
+            error_response = {'success': False, 'error': 'User ID not found in session'}
+            return make_response(jsonify(error_response), 400)
 
         # Get Spotify client with retries
+        sp = None
         retry_count = 0
         max_retries = 3
+        
         while retry_count < max_retries:
             try:
                 sp = get_spotify()
                 if sp:
                     break
                 retry_count += 1
-                time.sleep(1)  # Wait 1 second between retries
+                time.sleep(1)
             except Exception as e:
                 logger.error(f"Attempt {retry_count + 1} failed to create Spotify client: {str(e)}")
                 retry_count += 1
                 if retry_count == max_retries:
-                    return make_response(jsonify({'success': False, 'error': 'Failed to create Spotify client after retries'}), 500)
+                    error_response = {'success': False, 'error': 'Failed to create Spotify client after retries'}
+                    return make_response(jsonify(error_response), 500)
                 time.sleep(1)
+
+        if not sp:
+            error_response = {'success': False, 'error': 'Could not initialize Spotify client'}
+            return make_response(jsonify(error_response), 500)
 
         # Get all user playlists with pagination
         playlists = []
         offset = 0
-        limit = 20  # Reduced from 50 to avoid timeouts
+        limit = 20  # Reduced batch size
+        max_retries_per_request = 3
         
         try:
             while True:
-                try:
-                    logger.info(f"Fetching playlists at offset {offset}")
-                    results = sp.current_user_playlists(offset=offset, limit=limit)
-                    
-                    if not results or not results.get('items'):
-                        break
-                    
-                    # Process playlists in smaller batches
-                    for playlist in results['items']:
-                        try:
-                            # Add delay between playlist fetches to avoid rate limiting
-                            time.sleep(0.1)
-                            
-                            # Get full playlist details including tracks
-                            full_playlist = sp.playlist(playlist['id'])
-                            
-                            # Extract basic playlist info
-                            playlist_data = {
-                                'id': playlist['id'],
-                                'name': playlist['name'],
-                                'description': playlist.get('description', ''),
-                                'images': playlist.get('images', []),
-                                'tracks': []
-                            }
-                            
-                            # Extract track information in batches
-                            if full_playlist.get('tracks', {}).get('items'):
-                                for track in full_playlist['tracks']['items']:
-                                    if track and track.get('track'):
-                                        track_data = {
-                                            'id': track['track']['id'],
-                                            'name': track['track']['name'],
-                                            'duration_ms': track['track'].get('duration_ms', 0),
-                                            'artists': [artist['name'] for artist in track['track'].get('artists', [])],
-                                            'album': track['track'].get('album', {}).get('name', ''),
-                                            'release_date': track['track'].get('album', {}).get('release_date', ''),
-                                            'other_playlists': []
-                                        }
-                                        playlist_data['tracks'].append(track_data)
-                            
-                            playlists.append(playlist_data)
-                            logger.info(f"Successfully processed playlist {playlist['id']}")
-                            
-                        except Exception as e:
-                            logger.error(f"Error processing playlist {playlist['id']}: {str(e)}")
-                            continue
-                    
-                    offset += len(results['items'])
-                    if len(results['items']) < limit:
-                        break
+                # Retry loop for each playlist batch
+                retry_count = 0
+                while retry_count < max_retries_per_request:
+                    try:
+                        logger.info(f"Fetching playlists at offset {offset}")
+                        results = sp.current_user_playlists(offset=offset, limit=limit)
                         
-                except Exception as e:
-                    logger.error(f"Error fetching playlists at offset {offset}: {str(e)}")
-                    # Retry this batch
-                    time.sleep(1)
-                    continue
+                        if not validate_spotify_response(results, "playlists"):
+                            retry_count += 1
+                            if retry_count == max_retries_per_request:
+                                error_response = {'success': False, 'error': 'Invalid response from Spotify API'}
+                                return make_response(jsonify(error_response), 500)
+                            time.sleep(1)
+                            continue
+                        
+                        if not results.get('items'):
+                            break
+                            
+                        # Process playlists
+                        for playlist in results['items']:
+                            try:
+                                if not validate_spotify_response(playlist, "playlist"):
+                                    continue
+                                    
+                                # Get full playlist with retry
+                                full_playlist = None
+                                playlist_retry = 0
+                                while playlist_retry < max_retries_per_request:
+                                    try:
+                                        time.sleep(0.1)  # Rate limiting
+                                        full_playlist = sp.playlist(playlist['id'])
+                                        if validate_spotify_response(full_playlist, "full_playlist"):
+                                            break
+                                    except Exception as e:
+                                        logger.error(f"Error fetching full playlist {playlist['id']}: {str(e)}")
+                                        playlist_retry += 1
+                                        if playlist_retry == max_retries_per_request:
+                                            continue
+                                        time.sleep(1)
+                                
+                                if not full_playlist:
+                                    continue
+                                
+                                # Extract playlist data
+                                playlist_data = {
+                                    'id': playlist['id'],
+                                    'name': playlist.get('name', ''),
+                                    'description': playlist.get('description', ''),
+                                    'images': playlist.get('images', []),
+                                    'tracks': []
+                                }
+                                
+                                # Process tracks
+                                tracks = full_playlist.get('tracks', {}).get('items', [])
+                                for track in tracks:
+                                    if not track or not isinstance(track, dict):
+                                        continue
+                                        
+                                    track_obj = track.get('track')
+                                    if not track_obj or not isinstance(track_obj, dict):
+                                        continue
+                                        
+                                    # Safe track data extraction
+                                    track_data = {
+                                        'id': track_obj.get('id', ''),
+                                        'name': track_obj.get('name', ''),
+                                        'duration_ms': int(track_obj.get('duration_ms', 0)),
+                                        'artists': [],
+                                        'album': '',
+                                        'release_date': '',
+                                        'other_playlists': []
+                                    }
+                                    
+                                    # Safe artist extraction
+                                    artists = track_obj.get('artists', [])
+                                    if isinstance(artists, list):
+                                        track_data['artists'] = [
+                                            artist.get('name', '') 
+                                            for artist in artists 
+                                            if isinstance(artist, dict)
+                                        ]
+                                    
+                                    # Safe album extraction
+                                    album = track_obj.get('album')
+                                    if isinstance(album, dict):
+                                        track_data['album'] = album.get('name', '')
+                                        track_data['release_date'] = album.get('release_date', '')
+                                    
+                                    playlist_data['tracks'].append(track_data)
+                                
+                                playlists.append(playlist_data)
+                                logger.info(f"Successfully processed playlist {playlist['id']}")
+                                
+                            except Exception as e:
+                                logger.error(f"Error processing playlist {playlist['id']}: {str(e)}")
+                                continue
+                        
+                        offset += len(results['items'])
+                        if len(results['items']) < limit:
+                            break
+                            
+                        break  # Break retry loop on success
+                        
+                    except Exception as e:
+                        logger.error(f"Error fetching playlists at offset {offset}: {str(e)}")
+                        retry_count += 1
+                        if retry_count == max_retries_per_request:
+                            error_response = {'success': False, 'error': f"Failed to fetch playlists after {max_retries_per_request} attempts"}
+                            return make_response(jsonify(error_response), 500)
+                        time.sleep(1)
+                
+                if not results or not results.get('items'):
+                    break
 
             if not playlists:
                 logger.warning("No playlists found")
-                return make_response(jsonify({'success': False, 'error': 'No playlists found'}), 404)
+                error_response = {'success': False, 'error': 'No playlists found'}
+                return make_response(jsonify(error_response), 404)
 
-            # Create a map of track IDs to playlists for finding duplicates
+            # Process duplicate tracks
             track_playlist_map = {}
             for playlist in playlists:
                 for track in playlist['tracks']:
-                    if track['id'] not in track_playlist_map:
+                    if track['id'] and track['id'] not in track_playlist_map:
                         track_playlist_map[track['id']] = []
-                    track_playlist_map[track['id']].append({
-                        'id': playlist['id'],
-                        'name': playlist['name']
-                    })
+                    if track['id']:
+                        track_playlist_map[track['id']].append({
+                            'id': playlist['id'],
+                            'name': playlist['name']
+                        })
 
-            # Update tracks with other playlist information
+            # Update other playlists info
             for playlist in playlists:
                 for track in playlist['tracks']:
-                    other_playlists = track_playlist_map.get(track['id'], [])
-                    track['other_playlists'] = [p for p in other_playlists if p['id'] != playlist['id']]
+                    if track['id']:
+                        other_playlists = track_playlist_map.get(track['id'], [])
+                        track['other_playlists'] = [
+                            p for p in other_playlists 
+                            if p['id'] != playlist['id']
+                        ]
 
-            # Save optimized data
+            # Prepare response data
             data = {
                 'playlists': playlists,
                 'last_sync': int(time.time())
             }
             
+            # Save data
             try:
-                # Save to user-specific file
                 filename = os.path.join('data', f'{user_id}.json')
                 os.makedirs('data', exist_ok=True)
                 
                 with open(filename, 'w', encoding='utf-8') as f:
-                    json.dump(data, f, ensure_ascii=False, indent=2)  # Added indent for better formatting
+                    json.dump(data, f, ensure_ascii=False, indent=2)
                 logger.info(f"Successfully saved data for user {user_id}")
             except Exception as e:
                 logger.error(f"Error saving data: {str(e)}")
-                # Continue even if save fails - return data to client
+                # Continue even if save fails
             
             response = {
                 'success': True,
@@ -432,11 +516,13 @@ def sync_library():
 
         except Exception as e:
             logger.error(f"Error in playlist processing: {str(e)}")
-            return make_response(jsonify({'success': False, 'error': f"Error processing playlists: {str(e)}"}), 500)
+            error_response = {'success': False, 'error': f"Error processing playlists: {str(e)}"}
+            return make_response(jsonify(error_response), 500)
 
     except Exception as e:
         logger.error(f"Error in sync_library: {str(e)}")
-        return make_response(jsonify({'success': False, 'error': str(e)}), 500)
+        error_response = {'success': False, 'error': str(e)}
+        return make_response(jsonify(error_response), 500)
 
 @app.route('/playlist/<playlist_id>')
 def get_playlist(playlist_id):
@@ -491,6 +577,11 @@ def get_playlists():
     except Exception as e:
         print(f"Error getting playlists: {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(os.path.join(app.root_path, 'static'),
+                             'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
