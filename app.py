@@ -85,17 +85,17 @@ def get_all_items(sp, initial_request, get_next):
 
 # Add data storage functions
 def save_user_data(user_id, data):
-    data_dir = os.path.join(os.path.dirname(__file__), 'data')
+    data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
     os.makedirs(data_dir, exist_ok=True)
     
     file_path = os.path.join(data_dir, f'{user_id}.json')
-    with open(file_path, 'w') as f:
+    with open(file_path, 'w', encoding='utf-8') as f:
         json.dump(data, f)
 
 def load_user_data(user_id):
-    file_path = os.path.join(os.path.dirname(__file__), 'data', f'{user_id}.json')
+    file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', f'{user_id}.json')
     if os.path.exists(file_path):
-        with open(file_path, 'r') as f:
+        with open(file_path, 'r', encoding='utf-8') as f:
             return json.load(f)
     return None
 
@@ -174,7 +174,7 @@ def index():
         session['user_id'] = user_id
         
         # Look for user's data file
-        data_dir = os.path.join(os.path.dirname(__file__), 'data')
+        data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
         user_file = os.path.join(data_dir, f'{user_id}.json')
         
         if os.path.exists(user_file):
@@ -369,7 +369,7 @@ def sync_library():
 def get_playlist(playlist_id):
     try:
         # Load data from JSON
-        data_dir = os.path.join(os.path.dirname(__file__), 'data')
+        data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
         json_files = [f for f in os.listdir(data_dir) if f.endswith('.json')]
         
         if not json_files:
@@ -400,7 +400,7 @@ def get_playlist(playlist_id):
 def get_playlists():
     try:
         # Load data from JSON
-        data_dir = os.path.join(os.path.dirname(__file__), 'data')
+        data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
         json_files = [f for f in os.listdir(data_dir) if f.endswith('.json')]
         
         if not json_files:
