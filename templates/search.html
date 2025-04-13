@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4">Search</h1>
+    
+    <form action="{{ url_for('search') }}" method="get" class="mb-5">
+        <div class="input-group">
+            <input type="text" name="q" class="form-control" placeholder="Search for tracks or artists..." 
+                   value="{{ query if query else '' }}">
+            <button class="btn btn-spotify" type="submit">
+                <i class="fas fa-search me-1"></i>Search
+            </button>
+        </div>
+    </form>
+
+    {% if query %}
+    <div class="row mb-5">
+        <div class="col-12">
+            <h2>Tracks</h2>
+            <div class="row row-cols-1 row-cols-md-3 g-4">
+                {% for track in tracks %}
+                <div class="col">
+                    <div class="card h-100">
+                        {% if track.album.images %}
+                        <img src="{{ track.album.images[0].url }}" class="card-img-top" alt="{{ track.name }}">
+                        {% endif %}
+                        <div class="card-body">
+                            <h5 class="card-title">{{ track.name }}</h5>
+                            <p class="card-text">{{ track.artists[0].name }}</p>
+                            <a href="{{ track.external_urls.spotify }}" target="_blank" class="btn btn-spotify btn-sm">
+                                <i class="fab fa-spotify me-1"></i>Play on Spotify
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <h2>Artists</h2>
+            <div class="row row-cols-1 row-cols-md-3 g-4">
+                {% for artist in artists %}
+                <div class="col">
+                    <div class="card h-100">
+                        {% if artist.images %}
+                        <img src="{{ artist.images[0].url }}" class="card-img-top" alt="{{ artist.name }}">
+                        {% endif %}
+                        <div class="card-body">
+                            <h5 class="card-title">{{ artist.name }}</h5>
+                            <a href="{{ artist.external_urls.spotify }}" target="_blank" class="btn btn-spotify btn-sm">
+                                <i class="fab fa-spotify me-1"></i>View on Spotify
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

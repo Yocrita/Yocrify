@@ -1,0 +1,998 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Add initial data to window object -->
+<div id="appData" 
+     data-playlists="{{ playlists if playlists else '[]' }}"
+     data-current-playlist="{{ current_playlist if current_playlist else 'null' }}"
+     data-tracks="{{ tracks if tracks else '[]' }}"
+     data-last-sync="{{ last_sync|string if last_sync else '0' }}">
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM Content Loaded');
+    const searchInput = document.getElementById('playlistSearch');
+    console.log('Search Input:', searchInput);
+    if (searchInput) {
+        console.log('Adding event listener to search input');
+        searchInput.addEventListener('keyup', (e) => {
+            console.log('Search event:', e.target.value);
+            filterPlaylists(e.target.value);
+        });
+    }
+});
+
+(function() {
+    var appData = document.getElementById('appData');
+    console.log('App data element:', appData);
+    console.log('App data attributes:', appData.dataset);
+    
+    window.initialData = {
+        playlists: JSON.parse(appData.dataset.playlists || '[]'),
+        currentPlaylist: JSON.parse(appData.dataset.currentPlaylist || 'null'),
+        tracks: JSON.parse(appData.dataset.tracks || '[]'),
+        lastSync: parseInt(appData.dataset.lastSync || '0')
+    };
+    
+    // Debug log
+    console.log('Initial data loaded:', window.initialData);
+    
+    // Render the UI immediately
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize tooltips
+        initializeTooltips();
+        
+        // Render playlists
+        console.log('Rendering playlists:', window.initialData.playlists);
+        renderPlaylists(window.initialData.playlists);
+        
+        // Render current playlist or welcome screen
+        if (window.initialData.currentPlaylist) {
+            renderPlaylist(window.initialData.currentPlaylist, window.initialData.tracks);
+        } else {
+            renderWelcome();
+        }
+        
+        // Update sync button state
+        updateSyncButtonState();
+    });
+})();
+
+function initializeTooltips() {
+    const tooltipTriggerList = document.querySelectorAll('.playlist-item[title]');
+    tooltipTriggerList.forEach(element => {
+        const tooltip = new bootstrap.Tooltip(element, {
+            placement: 'right',
+            trigger: 'hover',
+            boundary: 'window',
+            popperConfig: {
+                strategy: 'absolute',
+                modifiers: [{
+                    name: 'offset',
+                    options: {
+                        offset: [0, 2]
+                    }
+                }, {
+                    name: 'arrow',
+                    options: {
+                        padding: ({ popper }) => popper.height / 2
+                    }
+                }]
+            }
+        });
+        
+        // Remove tooltip when clicking the playlist
+        element.addEventListener('click', () => {
+            tooltip.hide();
+        });
+    });
+}
+
+function loadPlaylist(playlistId) {
+    showLoading(true);
+    // Hide any visible tooltips before loading the playlist
+    const tooltips = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+    tooltips.forEach(el => {
+        const tooltip = bootstrap.Tooltip.getInstance(el);
+        if (tooltip) {
+            tooltip.hide();
+        }
+    });
+    
+    fetch(`/playlist/${playlistId}`)
+        .then(response => response.json())
+        .then(data => {
+            showLoading(false);
+            if (data.success) {
+                console.log('Playlist data:', data);
+                // Combine playlist data with tracks
+                const playlistWithTracks = {
+                    ...data.playlist,
+                    tracks: data.tracks
+                };
+                renderPlaylistContent(playlistWithTracks);
+            } else {
+                console.error('Error loading playlist:', data.error);
+            }
+        })
+        .catch(error => console.error('Error:', error));
+}
+
+function renderPlaylists(playlists) {
+    console.log('renderPlaylists called with:', playlists);
+    
+    const playlistList = document.getElementById('playlistList');
+    if (!playlistList) {
+        console.error('Playlist list element not found');
+        return;
+    }
+
+    // Ensure playlists is an array
+    if (!Array.isArray(playlists)) {
+        console.error('Playlists is not an array:', playlists);
+        playlists = [];
+    }
+
+    console.log(`Rendering ${playlists.length} playlists`);
+    
+    let html = '';
+    
+    // Group playlists by folder
+    const folders = {};
+    const rootPlaylists = [];
+    
+    playlists.forEach(playlist => {
+        console.log('Processing playlist:', playlist);
+        const name = playlist.name;
+        if (name.includes(' / ')) {
+            const [folderName, playlistName] = name.split(' / ');
+            if (!folders[folderName]) {
+                folders[folderName] = [];
+            }
+            folders[folderName].push({
+                ...playlist,
+                name: playlistName
+            });
+        } else {
+            rootPlaylists.push(playlist);
+        }
+    });
+    
+    console.log('Folders:', folders);
+    console.log('Root playlists:', rootPlaylists);
+    
+    // Render folders first
+    Object.keys(folders).sort().forEach(folderName => {
+        const folderPlaylists = folders[folderName];
+        html += `
+            <div class="playlist-folder" data-folder="${escapeHtml(folderName)}">
+                <div class="folder-header">
+                    <i class="fas fa-folder"></i>
+                    ${escapeHtml(folderName)}
+                    <span class="playlist-count">${folderPlaylists.length}</span>
+                </div>
+                <div class="folder-content">
+        `;
+        
+        // Sort playlists within folder by name
+        folderPlaylists.sort((a, b) => a.name.localeCompare(b.name));
+        folderPlaylists.forEach(playlist => {
+            html += renderPlaylistItem(playlist);
+        });
+        
+        html += '</div></div>';
+    });
+    
+    // Then render root playlists
+    rootPlaylists.sort((a, b) => a.name.localeCompare(b.name));
+    rootPlaylists.forEach(playlist => {
+        html += renderPlaylistItem(playlist);
+    });
+    
+    console.log('Final HTML:', html);
+    playlistList.innerHTML = html;
+    
+    // Initialize tooltips for the new playlist items
+    initializeTooltips();
+}
+
+function renderPlaylistItem(playlist) {
+    console.log('Rendering playlist item:', playlist);
+    
+    // Get the first image, or use a default
+    const image = playlist.images && playlist.images.length > 0 
+        ? playlist.images[0].url 
+        : 'https://via.placeholder.com/50';
+        
+    // Calculate songs that appear in other playlists
+    const duplicateSongsCount = playlist.tracks?.reduce((total, track) => 
+        total + (track.other_playlists?.length || 0), 0) || 0;
+
+    return `
+        <div class="playlist-item" 
+             data-playlist-id="${escapeHtml(playlist.id)}"
+             onclick="loadPlaylist('${escapeHtml(playlist.id)}')"
+             data-hidden="false"
+             title="${escapeHtml(playlist.name)}">
+            <div class="playlist-item-content">
+                <div class="playlist-image">
+                    <img src="${escapeHtml(image)}" alt="${escapeHtml(playlist.name)}">
+                </div>
+                <div class="playlist-info">
+                    <div class="playlist-name">${escapeHtml(playlist.name)}</div>
+                    <div class="playlist-details">
+                        <span class="playlist-tracks">${playlist.tracks_total || 0} tracks</span>
+                        ${formatDuration(playlist.duration_ms || 0)}
+                    </div>
+                </div>
+                <div class="badge-container">
+                    ${duplicateSongsCount > 0 ? `
+                        <div class="duplicate-badge">${duplicateSongsCount}</div>
+                    ` : ''}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderPlaylist(playlist, tracks) {
+    const html = `
+        <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3">
+            <div class="d-flex align-items-center">
+                ${playlist.images && playlist.images.length > 0
+                    ? `<img src="${playlist.images[0].url}" alt="" width="150" height="150" class="me-4 shadow">`
+                    : ''
+                }
+                <div>
+                    <p class="mb-1 text-muted">Playlist</p>
+                    <h1 class="h2 mb-2">${playlist.name}</h1>
+                    <p class="text-muted mb-1">${playlist.description || ''}</p>
+                    <p class="text-muted mb-0">
+                        ${playlist.owner.display_name} • 
+                        ${playlist.tracks_total} songs • 
+                        ${playlist.duration_formatted}
+                    </p>
+                    ${playlist.years_range && playlist.years_range.length === 2 ? 
+                        `<p class="text-muted mb-0">Years: ${playlist.years_range[0]} - ${playlist.years_range[1]}</p>` : 
+                        ''}
+                    <p class="text-muted mb-0">Artists: ${playlist.artists_total}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search box for tracks -->
+        <div class="input-group mb-3" style="max-width: 300px;">
+            <span class="input-group-text bg-dark border-0 text-muted">
+                <i class="fas fa-search"></i>
+            </span>
+            <input type="text" 
+                   class="form-control bg-dark border-0 text-white" 
+                   placeholder="Search in playlist"
+                   id="trackSearch"
+                   onkeyup="filterTracks(this.value)">
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-dark table-hover">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Title</th>
+                        <th>Album</th>
+                        <th>Duration</th>
+                        <th>Playlists</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${tracks.map((track, index) => {
+                        const trackInfo = {
+                            title: track.name.toLowerCase(),
+                            artist: track.artists.map(a => a.name.toLowerCase()).join(' '),
+                            album: track.album.name.toLowerCase(),
+                            year: track.album.release_date?.substring(0, 4) || ''
+                        };
+
+                        const otherPlaylists = track.other_playlists || [];
+                        const playlistBadge = otherPlaylists.length > 0 ? `
+                            <span class="badge bg-primary playlist-count" 
+                                  data-bs-toggle="tooltip" 
+                                  data-bs-html="true"
+                                  title="${escapeHtml(otherPlaylists.map((p, i) => `${i + 1}. ${p.name}`).join('<br>'))}">
+                                ${otherPlaylists.length}
+                            </span>
+                        ` : '';
+
+                        return `
+                            <tr class="track-row" data-track-info="${escapeHtml(JSON.stringify(trackInfo))}">
+                                <td class="text-muted">${index + 1}</td>
+                                <td>
+                                    <div class="track-title">
+                                        ${track.name}
+                                        <div class="text-muted">${track.artists.map(artist => artist.name).join(', ')}</div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="track-album">
+                                        ${track.album.name}
+                                        <div class="text-muted">${track.album.release_date ? track.album.release_date.substring(0, 4) : ''}</div>
+                                    </div>
+                                </td>
+                                <td>${formatDuration(track.duration_ms)}</td>
+                                <td class="text-center">${playlistBadge}</td>
+                            </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+    document.getElementById('mainContent').innerHTML = html;
+    
+    // Initialize tooltips with HTML support
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.forEach(tooltipTriggerEl => {
+        new bootstrap.Tooltip(tooltipTriggerEl, {
+            html: true,
+            placement: 'left'
+        });
+    });
+}
+
+function renderPlaylistContent(playlistData) {
+    console.log('Rendering playlist with tracks:', playlistData);
+    const html = `
+        <div class="playlist-header mb-4">
+            <h1>${playlistData.name}</h1>
+            <p class="text-muted">
+                ${playlistData.tracks.length} tracks • ${playlistData.duration_formatted}
+            </p>
+            <!-- Search box for tracks -->
+            <div class="input-group mb-3" style="max-width: 300px;">
+                <span class="input-group-text bg-dark border-0 text-muted">
+                    <i class="fas fa-search"></i>
+                </span>
+                <input type="text" 
+                       class="form-control bg-dark border-0 text-white" 
+                       placeholder="Search in playlist"
+                       id="trackSearch"
+                       onkeyup="filterTracks(this.value)">
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-dark table-hover">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Title</th>
+                        <th>Artist</th>
+                        <th>Album</th>
+                        <th>Duration</th>
+                        <th>Playlists</th>
+                    </tr>
+                </thead>
+                <tbody id="playlistTracks">
+                    ${playlistData.tracks.map((track, index) => {
+                        // Store searchable data
+                        const trackInfo = {
+                            title: track.name.toLowerCase(),
+                            artist: track.artists.map(a => a.name.toLowerCase()).join(' '),
+                            album: track.album.name.toLowerCase(),
+                            year: track.album.release_date?.substring(0, 4) || ''
+                        };
+
+                        // Format other playlists info
+                        let playlistBadge = '';
+                        if (track.other_playlists && track.other_playlists.length > 0) {
+                            const playlistNames = track.other_playlists
+                                .map(p => p.name)
+                                .join('<br>');
+                            
+                            playlistBadge = `
+                                <span class="badge bg-primary playlist-count" 
+                                      data-bs-toggle="tooltip" 
+                                      data-bs-html="true"
+                                      title="${escapeHtml(playlistNames)}">
+                                    ${track.other_playlists.length}
+                                </span>
+                            `;
+                        }
+
+                        return `
+                            <tr class="track-row" data-track-info="${escapeHtml(JSON.stringify(trackInfo))}">
+                                <td class="text-muted">${index + 1}</td>
+                                <td>
+                                    <div class="text-truncate" style="max-width: 300px">
+                                        ${track.name}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="text-truncate" style="max-width: 200px">
+                                        ${track.artists.map(artist => artist.name).join(', ')}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="text-truncate" style="max-width: 200px">
+                                        ${track.album.name}${track.album.release_date ? ` (${track.album.release_date.substring(0, 4)})` : ''}
+                                    </div>
+                                </td>
+                                <td>${formatDuration(track.duration_ms)}</td>
+                                <td class="text-center">${playlistBadge}</td>
+                            </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+    document.getElementById('mainContent').innerHTML = html;
+    
+    // Initialize tooltips with HTML support
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.forEach(tooltipTriggerEl => {
+        new bootstrap.Tooltip(tooltipTriggerEl, {
+            html: true,
+            placement: 'left'
+        });
+    });
+}
+
+function escapeHtml(unsafe) {
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function renderWelcome() {
+    const mainContent = document.getElementById('mainContent');
+    if (!mainContent) return;
+
+    mainContent.innerHTML = `
+        <div class="text-center py-5">
+            <h1>Welcome to Your Music Library</h1>
+            <p class="lead">Select a playlist from the sidebar to start listening</p>
+        </div>
+    `;
+}
+
+function formatDuration(ms) {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function showToast(message, isError = false) {
+    const toast = document.getElementById('syncToast');
+    const toastMessage = document.getElementById('syncToastMessage');
+    if (toast && toastMessage) {
+        toastMessage.textContent = message;
+        toastMessage.className = `toast-body ${isError ? 'text-danger' : ''}`;
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+    }
+}
+
+function showLoading(show = true) {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) {
+        overlay.classList.toggle('d-none', !show);
+    }
+}
+
+function updateSyncButtonState() {
+    const syncButton = document.getElementById('syncButton');
+    if (!syncButton) return;
+
+    const lastSync = parseInt(document.getElementById('appData').dataset.lastSync || '0');
+    const now = Math.floor(Date.now() / 1000);
+    
+    // Check if last sync was today
+    const lastSyncDate = new Date(lastSync * 1000);
+    const todayDate = new Date();
+    
+    const isSameDay = lastSyncDate.getFullYear() === todayDate.getFullYear() &&
+                     lastSyncDate.getMonth() === todayDate.getMonth() &&
+                     lastSyncDate.getDate() === todayDate.getDate();
+    
+    if (isSameDay) {
+        syncButton.classList.add('sync-today');
+        syncButton.classList.remove('sync-old');
+    } else {
+        syncButton.classList.add('sync-old');
+        syncButton.classList.remove('sync-today');
+    }
+}
+
+async function syncData() {
+    showLoading(true);
+    fetch('/sync_library')
+        .then(response => response.json())
+        .then(data => {
+            showLoading(false);
+            if (data.success) {
+                window.initialData.playlists = data.playlists;
+                window.initialData.lastSync = data.last_sync;
+                renderPlaylists(data.playlists);
+                updateSyncButtonState();
+                showToast('Library synchronized successfully!');
+            } else {
+                if (data.error === 'not_authenticated') {
+                    window.location.href = '/login';
+                } else {
+                    showToast('Failed to sync library. Please try again.', true);
+                }
+            }
+        })
+        .catch(error => {
+            showLoading(false);
+            showToast('Failed to sync library. Please try again.', true);
+            console.error('Error:', error);
+        });
+}
+
+function filterTracks(searchTerm) {
+    const normalizedSearch = searchTerm.toLowerCase().trim();
+    const rows = document.querySelectorAll('.track-row');
+    
+    rows.forEach(row => {
+        if (!row.dataset.trackInfo) return;
+        
+        const trackInfo = JSON.parse(row.dataset.trackInfo);
+        const shouldShow = Object.values(trackInfo).some(value => 
+            value && value.includes(normalizedSearch)
+        );
+        row.style.display = shouldShow ? '' : 'none';
+    });
+}
+
+function filterPlaylists(searchTerm) {
+    const normalizedSearch = searchTerm.toLowerCase().trim();
+    const playlists = document.querySelectorAll('.playlist-item');
+    const folders = document.querySelectorAll('.playlist-folder');
+    
+    // First pass: count matching playlists in each folder
+    const folderMatches = new Map();
+    folders.forEach(folder => {
+        const folderPlaylists = folder.querySelectorAll('.playlist-item');
+        const matchCount = Array.from(folderPlaylists).filter(playlist => {
+            const playlistName = playlist.querySelector('.text-truncate')?.textContent.toLowerCase() || '';
+            return playlistName.includes(normalizedSearch);
+        }).length;
+        folderMatches.set(folder, matchCount);
+    });
+    
+    // Second pass: hide/show playlists and folders
+    playlists.forEach(playlist => {
+        // Skip the Liked Songs playlist from filtering
+        if (playlist.querySelector('.liked-songs-icon')) {
+            playlist.setAttribute('data-hidden', 'false');
+            return;
+        }
+        
+        const playlistName = playlist.querySelector('.text-truncate')?.textContent.toLowerCase() || '';
+        const shouldShow = playlistName.includes(normalizedSearch);
+        playlist.setAttribute('data-hidden', (!shouldShow).toString());
+        
+        // If playlist is in a folder, update folder visibility
+        const parentFolder = playlist.closest('.playlist-folder');
+        if (parentFolder) {
+            const hasVisiblePlaylists = folderMatches.get(parentFolder) > 0;
+            parentFolder.setAttribute('data-hidden', (!hasVisiblePlaylists).toString());
+        }
+    });
+}
+
+// Initialize search when document is ready
+document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('playlistSearch');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            filterPlaylists(e.target.value);
+        });
+    }
+});
+
+function loadPlaylist(playlistId) {
+    fetch(`/playlist/${playlistId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('Playlist data:', data);
+                renderPlaylist(data.playlist, data.tracks);
+            } else {
+                console.error('Error loading playlist:', data.error);
+                showToast('Failed to load playlist. Please try again.', true);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showToast('Failed to load playlist. Please try again.', true);
+        });
+}
+
+function initializeTooltips() {
+    const tooltipTriggerList = document.querySelectorAll('.playlist-item[title]');
+    tooltipTriggerList.forEach(element => {
+        const tooltip = new bootstrap.Tooltip(element, {
+            placement: 'right',
+            trigger: 'hover',
+            boundary: 'window',
+            popperConfig: {
+                strategy: 'absolute',
+                modifiers: [{
+                    name: 'offset',
+                    options: {
+                        offset: [0, 2]
+                    }
+                }]
+            }
+        });
+        
+        // Remove tooltip when clicking the playlist
+        element.addEventListener('click', () => {
+            tooltip.hide();
+        });
+    });
+}
+
+function renderPlaylists(playlists) {
+    console.log('renderPlaylists called with:', playlists);
+    
+    const playlistContainer = document.getElementById('playlistList');
+    if (!playlistContainer) {
+        console.error('Playlist list element not found');
+        return;
+    }
+
+    // Ensure playlists is an array
+    if (!Array.isArray(playlists)) {
+        console.error('Playlists is not an array:', playlists);
+        playlists = [];
+    }
+
+    console.log(`Rendering ${playlists.length} playlists`);
+    
+    let html = '';
+    
+    // Group playlists by folder
+    const folders = {};
+    const rootPlaylists = [];
+    
+    playlists.forEach(playlist => {
+        console.log('Processing playlist:', playlist);
+        const name = playlist.name;
+        if (name.includes(' / ')) {
+            const [folderName, playlistName] = name.split(' / ');
+            if (!folders[folderName]) {
+                folders[folderName] = [];
+            }
+            folders[folderName].push({
+                ...playlist,
+                name: playlistName
+            });
+        } else {
+            rootPlaylists.push(playlist);
+        }
+    });
+    
+    console.log('Folders:', folders);
+    console.log('Root playlists:', rootPlaylists);
+    
+    // Render folders first
+    Object.keys(folders).sort().forEach(folderName => {
+        const folderPlaylists = folders[folderName];
+        html += `
+            <div class="playlist-folder" data-folder="${escapeHtml(folderName)}">
+                <div class="folder-header">
+                    <i class="fas fa-folder"></i>
+                    ${escapeHtml(folderName)}
+                    <span class="playlist-count">${folderPlaylists.length}</span>
+                </div>
+                <div class="folder-content">
+        `;
+        
+        // Sort playlists within folder by name
+        folderPlaylists.sort((a, b) => a.name.localeCompare(b.name));
+        folderPlaylists.forEach(playlist => {
+            html += renderPlaylistItem(playlist);
+        });
+        
+        html += '</div></div>';
+    });
+    
+    // Then render root playlists
+    rootPlaylists.sort((a, b) => a.name.localeCompare(b.name));
+    rootPlaylists.forEach(playlist => {
+        html += renderPlaylistItem(playlist);
+    });
+    
+    console.log('Final HTML:', html);
+    playlistContainer.innerHTML = html;
+    
+    // Initialize tooltips for the new playlist items
+    initializeTooltips();
+}
+
+</script>
+
+<style>
+.playlist-list {
+    padding: 1rem;
+    overflow-y: auto;
+    height: calc(100vh - 120px);  /* Adjust based on header height */
+}
+
+.playlist-item {
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border-radius: 4px;
+    margin-bottom: 2px;
+    position: relative;
+}
+
+.playlist-item:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.playlist-item-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+}
+
+.playlist-image {
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+}
+
+.playlist-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 4px;
+}
+
+.playlist-info {
+    flex: 0 1 90%;
+    min-width: 0;
+}
+
+.badge-container {
+    flex: 0 0 10%;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    min-width: fit-content;
+}
+
+.playlist-name {
+    color: #fff;
+    font-weight: 400;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.playlist-details {
+    color: #b3b3b3;
+    font-size: 0.875rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.duplicate-badge {
+    background-color: #1a74e8;
+    color: white;
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    min-width: 24px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.input-group {
+    background-color: #242424;
+    border-radius: 4px;
+    margin: 8px 16px;
+}
+
+.input-group-text {
+    background-color: transparent;
+    border: none;
+    padding: 8px 12px;
+}
+
+.input-group-text i {
+    color: #b3b3b3;
+}
+
+.form-control {
+    background-color: transparent;
+    border: none;
+    color: #fff;
+    padding: 8px 0;
+}
+
+.form-control:focus {
+    background-color: transparent;
+    box-shadow: none;
+    color: #fff;
+}
+
+.form-control::placeholder {
+    color: #b3b3b3;
+}
+
+.library-header {
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.library-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #fff;
+}
+
+.library-title i {
+    color: #fff;
+}
+
+.sync-button {
+    background-color: transparent;
+    border: 1px solid #1DB954;
+    border-radius: 16px;
+    color: #1DB954;
+    padding: 4px 12px;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sync-button:hover {
+    background-color: rgba(29, 185, 84, 0.1);
+}
+
+.sync-button i {
+    font-size: 12px;
+}
+
+.playlist-item[data-hidden="true"] {
+    display: none;
+}
+
+.playlist-folder[data-hidden="true"] {
+    display: none;
+}
+
+/* Tooltip customization */
+.tooltip {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    pointer-events: none;
+    position: absolute;
+}
+
+.tooltip .tooltip-inner {
+    background-color: #282828;
+    color: #fff;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 0.875rem;
+    max-width: 280px;
+    text-align: left;
+}
+
+.tooltip.bs-tooltip-end .tooltip-arrow {
+    top: 50% !important;
+    transform: translateY(-50%);
+}
+
+.tooltip.bs-tooltip-end .tooltip-arrow::before {
+    border-right-color: #282828;
+}
+
+/* Position the tooltip container relative to the playlist item */
+.playlist-item {
+    position: relative;
+}
+
+/* Ensure sidebar doesn't clip tooltips */
+.sidebar {
+    overflow: visible !important;
+}
+
+.playlist-list {
+    overflow-x: visible !important;
+}
+</style>
+
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar with library and playlists -->
+        <div class="col-md-3 col-lg-2 sidebar">
+            <!-- Library header -->
+            <div class="library-header">
+                <div class="library-title">
+                    <i class="fas fa-music"></i>
+                    Your Library
+                </div>
+                <button id="syncButton" class="sync-button" onclick="syncData()">
+                    <i class="fas fa-sync-alt"></i>
+                    Sync
+                </button>
+            </div>
+
+            <!-- Search box -->
+            <div class="sidebar-section">
+                <div class="input-group">
+                    <span class="input-group-text bg-dark border-0 text-muted">
+                        <i class="fas fa-search"></i>
+                    </span>
+                    <input type="text" 
+                           class="form-control bg-dark border-0 text-white" 
+                           placeholder="Search for playlists"
+                           id="playlistSearch"
+                           onkeyup="filterPlaylists(this.value)">
+                </div>
+            </div>
+
+            <!-- Playlist list -->
+            <div id="playlistList" class="playlist-list">
+                <!-- Playlists will be rendered here -->
+            </div>
+        </div>
+
+        <!-- Main content -->
+        <div class="col-md-9 col-lg-10 main-content">
+            <div id="mainContent">
+                <!-- Content will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast notification -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="syncToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong class="me-auto">Spotify App</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body" id="syncToastMessage">
+        </div>
+    </div>
+</div>
+
+<!-- Loading overlay -->
+<div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-none" 
+     style="background: rgba(0,0,0,0.7); z-index: 9999;">
+    <div class="d-flex justify-content-center align-items-center h-100">
+        <div class="text-white text-center">
+            <div class="spinner-border text-success mb-3" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <div>Synchronizing library...</div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

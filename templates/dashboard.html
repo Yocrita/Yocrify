@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col">
+            <h1>Welcome, {{ user.display_name }}!</h1>
+        </div>
+    </div>
+
+    <div class="row mb-5">
+        <div class="col">
+            <h2>Your Top Tracks</h2>
+            <div class="row row-cols-1 row-cols-md-3 g-4">
+                {% for track in top_tracks %}
+                <div class="col">
+                    <div class="card h-100">
+                        {% if track.album.images %}
+                        <img src="{{ track.album.images[0].url }}" class="card-img-top" alt="{{ track.name }}">
+                        {% endif %}
+                        <div class="card-body">
+                            <h5 class="card-title">{{ track.name }}</h5>
+                            <p class="card-text">{{ track.artists[0].name }}</p>
+                            <a href="{{ track.external_urls.spotify }}" target="_blank" class="btn btn-spotify btn-sm">
+                                <i class="fab fa-spotify me-1"></i>Play on Spotify
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col">
+            <h2>Your Playlists</h2>
+            <div class="row row-cols-1 row-cols-md-3 g-4">
+                {% for playlist in playlists %}
+                <div class="col">
+                    <div class="card h-100">
+                        {% if playlist.images %}
+                        <img src="{{ playlist.images[0].url }}" class="card-img-top" alt="{{ playlist.name }}">
+                        {% endif %}
+                        <div class="card-body">
+                            <h5 class="card-title">{{ playlist.name }}</h5>
+                            <p class="card-text">{{ playlist.tracks.total }} tracks</p>
+                            <a href="{{ playlist.external_urls.spotify }}" target="_blank" class="btn btn-spotify btn-sm">
+                                <i class="fab fa-spotify me-1"></i>Open in Spotify
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
