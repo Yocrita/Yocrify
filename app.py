@@ -1,15 +1,20 @@
 import os
 import json
+import logging
 from flask import Flask, render_template, session, redirect, request, url_for, jsonify
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from dotenv import load_dotenv
 import time
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.getenv('FLASK_SECRET_KEY', 'your-secret-key-here')  # Use consistent secret key
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'your-secret-key-here')
 
 # Spotify OAuth Configuration
 SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
@@ -17,14 +22,24 @@ SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
 SPOTIFY_REDIRECT_URI = os.getenv('SPOTIFY_REDIRECT_URI')
 SCOPE = 'user-library-read playlist-read-private playlist-read-collaborative'
 
+# Log configuration values (without secrets)
+logger.info(f"Starting app with REDIRECT_URI: {SPOTIFY_REDIRECT_URI}")
+logger.info(f"Client ID configured: {'Yes' if SPOTIFY_CLIENT_ID else 'No'}")
+logger.info(f"Client Secret configured: {'Yes' if SPOTIFY_CLIENT_SECRET else 'No'}")
+
 def create_spotify_oauth():
-    return SpotifyOAuth(
-        client_id=SPOTIFY_CLIENT_ID,
-        client_secret=SPOTIFY_CLIENT_SECRET,
-        redirect_uri=SPOTIFY_REDIRECT_URI,
-        scope=SCOPE,
-        cache_path='.spotify_cache'  # Enable token caching
-    )
+    try:
+        oauth = SpotifyOAuth(
+            client_id=SPOTIFY_CLIENT_ID,
+            client_secret=SPOTIFY_CLIENT_SECRET,
+            redirect_uri=SPOTIFY_REDIRECT_URI,
+            scope=SCOPE,
+            cache_path='.spotify_cache'  # Enable token caching
+        )
+        return oauth
+    except Exception as e:
+        logger.error(f"Error creating Spotify OAuth: {str(e)}")
+        raise
 
 def get_spotify_client():
     try:
@@ -50,7 +65,7 @@ def get_spotify_client():
         
         return spotipy.Spotify(auth=token_info['access_token'], requests_timeout=20)
     except Exception as e:
-        print(f"Error getting Spotify client: {str(e)}")
+        logger.error(f"Error getting Spotify client: {str(e)}")
         session.pop('token_info', None)  # Clear invalid token
         return None
 
@@ -161,122 +176,141 @@ def format_duration(ms):
 
 @app.route('/')
 def index():
-    sp = get_spotify()
-    if not sp:
-        return redirect(url_for('login'))
-        
     try:
-        # Look for any existing JSON data file
-        data_dir = os.path.join(os.path.dirname(__file__), 'data')
-        if os.path.exists(data_dir):
-            # Get the first JSON file we find
-            json_files = [f for f in os.listdir(data_dir) if f.endswith('.json')]
-            if json_files:
-                print(f"Found data file: {json_files[0]}")
-                with open(os.path.join(data_dir, json_files[0]), 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    print("Loaded data:", {
-                        'num_playlists': len(data.get('playlists', [])),
-                        'num_tracks': len(data.get('tracks', {})),
-                        'last_sync': data.get('last_sync', 0)
-                    })
-                    return render_template('playlists.html',
-                                        playlists=json.dumps(data.get('playlists', [])),
-                                        tracks=json.dumps(data.get('tracks', {})),
-                                        current_playlist=json.dumps(None),
-                                        last_sync=data.get('last_sync', 0))
+        sp = get_spotify()
+        if not sp:
+            return redirect(url_for('login'))
+        
+        try:
+            # Look for any existing JSON data file
+            data_dir = os.path.join(os.path.dirname(__file__), 'data')
+            if os.path.exists(data_dir):
+                # Get the first JSON file we find
+                json_files = [f for f in os.listdir(data_dir) if f.endswith('.json')]
+                if json_files:
+                    logger.info(f"Found data file: {json_files[0]}")
+                    with open(os.path.join(data_dir, json_files[0]), 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        logger.info("Loaded data:", {
+                            'num_playlists': len(data.get('playlists', [])),
+                            'num_tracks': len(data.get('tracks', {})),
+                            'last_sync': data.get('last_sync', 0)
+                        })
+                        return render_template('playlists.html',
+                                            playlists=json.dumps(data.get('playlists', [])),
+                                            tracks=json.dumps(data.get('tracks', {})),
+                                            current_playlist=json.dumps(None),
+                                            last_sync=data.get('last_sync', 0))
                                         
-        # No data file found, render empty state
-        print("No data file found")
-        return render_template('playlists.html',
-                            playlists=json.dumps([]),
-                            tracks=json.dumps({}),
-                            current_playlist=json.dumps(None),
-                            last_sync=0)
-                            
+            # No data file found, render empty state
+            logger.info("No data file found")
+            return render_template('playlists.html',
+                                playlists=json.dumps([]),
+                                tracks=json.dumps({}),
+                                current_playlist=json.dumps(None),
+                                last_sync=0)
+        
+        except Exception as e:
+            logger.error(f"Error loading data: {str(e)}")
+            return render_template('playlists.html',
+                                playlists=json.dumps([]),
+                                tracks=json.dumps({}),
+                                current_playlist=json.dumps(None),
+                                last_sync=0)
+
     except Exception as e:
-        print(f"Error loading data: {str(e)}")
-        return render_template('playlists.html',
-                            playlists=json.dumps([]),
-                            tracks=json.dumps({}),
-                            current_playlist=json.dumps(None),
-                            last_sync=0)
+        logger.error(f"Error rendering index page: {str(e)}")
+        return "Internal Server Error", 500
 
 @app.route('/login')
 def login():
-    # Clear any existing session
-    session.clear()
-    
-    sp_oauth = create_spotify_oauth()
-    auth_url = sp_oauth.get_authorize_url()
-    return redirect(auth_url)
+    try:
+        # Clear any existing session
+        session.clear()
+        
+        sp_oauth = create_spotify_oauth()
+        auth_url = sp_oauth.get_authorize_url()
+        logger.info(f"Generated auth URL: {auth_url}")
+        return redirect(auth_url)
+    except Exception as e:
+        logger.error(f"Error in login route: {str(e)}")
+        return "Error during login process", 500
 
 @app.route('/callback')
 def callback():
-    sp_oauth = create_spotify_oauth()
-    session.clear()
-    
-    code = request.args.get('code')
-    error = request.args.get('error')
-    
-    if error:
-        return f"Error during authentication: {error}"
-    
-    if not code:
-        return redirect(url_for('login'))
-    
     try:
-        token_info = sp_oauth.get_access_token(code)
-        session['token_info'] = token_info
-        return redirect(url_for('index'))
+        sp_oauth = create_spotify_oauth()
+        session.clear()
+        
+        code = request.args.get('code')
+        error = request.args.get('error')
+        
+        if error:
+            return f"Error during authentication: {error}"
+        
+        if not code:
+            return redirect(url_for('login'))
+        
+        try:
+            token_info = sp_oauth.get_access_token(code)
+            session['token_info'] = token_info
+            return redirect(url_for('index'))
+        except Exception as e:
+            logger.error(f"Error getting access token: {str(e)}")
+            return "Error during authentication", 500
     except Exception as e:
-        return f"Error getting access token: {str(e)}"
+        logger.error(f"Error in callback route: {str(e)}")
+        return "Internal Server Error", 500
 
 @app.route('/logout')
 def logout():
-    # Clear Flask session
-    session.clear()
-    
-    # Delete Spotify cache file if it exists
-    cache_path = '.spotify_cache'
-    if os.path.exists(cache_path):
-        try:
-            os.remove(cache_path)
-            print("Deleted Spotify cache file")
-        except Exception as e:
-            print(f"Error deleting cache file: {str(e)}")
-    
-    # Clear any existing data files
-    data_dir = os.path.join(os.path.dirname(__file__), 'data')
-    if os.path.exists(data_dir):
-        try:
-            for file in os.listdir(data_dir):
-                if file.endswith('.json'):
-                    os.remove(os.path.join(data_dir, file))
-                    print(f"Deleted data file: {file}")
-        except Exception as e:
-            print(f"Error clearing data files: {str(e)}")
-    
-    return redirect(url_for('login'))  # Redirect to login instead of index
+    try:
+        # Clear Flask session
+        session.clear()
+        
+        # Delete Spotify cache file if it exists
+        cache_path = '.spotify_cache'
+        if os.path.exists(cache_path):
+            try:
+                os.remove(cache_path)
+                logger.info("Deleted Spotify cache file")
+            except Exception as e:
+                logger.error(f"Error deleting cache file: {str(e)}")
+        
+        # Clear any existing data files
+        data_dir = os.path.join(os.path.dirname(__file__), 'data')
+        if os.path.exists(data_dir):
+            try:
+                for file in os.listdir(data_dir):
+                    if file.endswith('.json'):
+                        os.remove(os.path.join(data_dir, file))
+                        logger.info(f"Deleted data file: {file}")
+            except Exception as e:
+                logger.error(f"Error clearing data files: {str(e)}")
+        
+        return redirect(url_for('login'))  # Redirect to login instead of index
+    except Exception as e:
+        logger.error(f"Error in logout route: {str(e)}")
+        return "Internal Server Error", 500
 
 @app.route('/sync_library')
 def sync_library():
     try:
-        print("Starting sync process...")
+        logger.info("Starting sync process...")
         sp = get_spotify()
         if not sp:
-            print("No Spotify client - not authenticated")
+            logger.error("No Spotify client - not authenticated")
             return jsonify({'success': False, 'error': 'not_authenticated'})
 
-        print("Getting current user...")
+        logger.info("Getting current user...")
         try:
             current_user = sp.current_user()
             user_id = current_user['id']
         except Exception as e:
-            print(f"Error getting user info: {str(e)}")
+            logger.error(f"Error getting user info: {str(e)}")
             return jsonify({'success': False, 'error': 'not_authenticated'})
 
-        print("Getting playlists...")
+        logger.info("Getting playlists...")
         # Get all playlists
         playlists = []
         offset = 0
@@ -284,40 +318,40 @@ def sync_library():
             # First, get total number of playlists
             initial_results = sp.current_user_playlists(limit=1)
             total_playlists = initial_results['total']
-            print(f"Total playlists to fetch: {total_playlists}")
+            logger.info(f"Total playlists to fetch: {total_playlists}")
 
             while offset < total_playlists:
-                print(f"Fetching playlists batch at offset {offset}...")
+                logger.info(f"Fetching playlists batch at offset {offset}...")
                 results = sp.current_user_playlists(offset=offset, limit=50)  # Fetch 50 at a time
                 batch_items = results['items']
                 batch_size = len(batch_items)
                 
                 if batch_size == 0:
-                    print("No more playlists found, breaking loop")
+                    logger.info("No more playlists found, breaking loop")
                     break
                 
-                print(f"Retrieved {batch_size} playlists in this batch")
+                logger.info(f"Retrieved {batch_size} playlists in this batch")
                 playlists.extend(batch_items)
                 offset += batch_size
-                print(f"Total playlists fetched so far: {len(playlists)}/{total_playlists}")
+                logger.info(f"Total playlists fetched so far: {len(playlists)}/{total_playlists}")
 
         except Exception as e:
-            print(f"Error fetching playlists at offset {offset}: {str(e)}")
+            logger.error(f"Error fetching playlists at offset {offset}: {str(e)}")
             return jsonify({'success': False, 'error': str(e)})
 
-        print(f"Successfully fetched all {len(playlists)} playlists")
+        logger.info(f"Successfully fetched all {len(playlists)} playlists")
 
         # Track which playlists each track appears in
         track_playlist_map = {}
         playlist_tracks = {}
         optimized_playlists = []
 
-        print(f"Processing {len(playlists)} playlists...")
+        logger.info(f"Processing {len(playlists)} playlists...")
         total_processed = 0
         for playlist in playlists:
             try:
                 playlist_name = playlist.get('name', 'Unknown')
-                print(f"Processing playlist {total_processed + 1}/{len(playlists)}: {playlist_name}")
+                logger.info(f"Processing playlist {total_processed + 1}/{len(playlists)}: {playlist_name}")
                 tracks = []
                 track_offset = 0
 
@@ -352,7 +386,7 @@ def sync_library():
                             break
 
                     except Exception as e:
-                        print(f"Error fetching tracks at offset {track_offset}: {str(e)}")
+                        logger.error(f"Error fetching tracks at offset {track_offset}: {str(e)}")
                         continue
 
                 # Store the tracks for this playlist
@@ -365,10 +399,10 @@ def sync_library():
                 total_processed += 1
 
             except Exception as e:
-                print(f"Error processing playlist {playlist_name}: {str(e)}")
+                logger.error(f"Error processing playlist {playlist_name}: {str(e)}")
                 continue
 
-        print("Creating data structure...")
+        logger.info("Creating data structure...")
         # Save optimized data
         data = {
             'playlists': optimized_playlists,
@@ -376,16 +410,16 @@ def sync_library():
             'last_sync': int(time.time())
         }
 
-        print("Ensuring data directory exists...")
+        logger.info("Ensuring data directory exists...")
         # Ensure data directory exists
         data_dir = os.path.join(os.path.dirname(__file__), 'data')
         os.makedirs(data_dir, exist_ok=True)
 
-        print("Saving data...")
+        logger.info("Saving data...")
         # Save the data
         save_user_data(user_id, data)
 
-        print("Sync completed successfully")
+        logger.info("Sync completed successfully")
         return jsonify({
             'success': True,
             'playlists': optimized_playlists,
@@ -393,7 +427,7 @@ def sync_library():
         })
 
     except Exception as e:
-        print(f"Error during sync: {str(e)}")
+        logger.error(f"Error during sync: {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/playlist/<playlist_id>')
@@ -424,7 +458,7 @@ def get_playlist(playlist_id):
         })
         
     except Exception as e:
-        print(f"Error getting playlist: {str(e)}")
+        logger.error(f"Error getting playlist: {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/playlists')
@@ -447,7 +481,7 @@ def get_playlists():
         })
         
     except Exception as e:
-        print(f"Error getting playlists: {str(e)}")
+        logger.error(f"Error getting playlists: {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
