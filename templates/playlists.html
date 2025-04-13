@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Adding event listener to search input');
         searchInput.addEventListener('keyup', (e) => {
             console.log('Search event:', e.target.value);
-            filterPlaylists(e.target.value);
+            filterPlaylists();
         });
     }
 });
@@ -539,39 +539,38 @@ function filterTracks(searchTerm) {
     });
 }
 
-function filterPlaylists(searchTerm) {
-    const normalizedSearch = searchTerm.toLowerCase().trim();
-    const playlists = document.querySelectorAll('.playlist-item');
+function filterPlaylists() {
+    const searchTerm = document.getElementById('playlistSearch').value.toLowerCase().trim();
+    console.log('Filtering playlists with term:', searchTerm);
+
+    // Get all playlist items and folders
+    const playlistItems = document.querySelectorAll('.playlist-item');
     const folders = document.querySelectorAll('.playlist-folder');
     
-    // First pass: count matching playlists in each folder
-    const folderMatches = new Map();
+    // Handle folders
     folders.forEach(folder => {
+        let hasVisiblePlaylists = false;
+        const folderName = folder.querySelector('.folder-title')?.textContent.toLowerCase() || '';
         const folderPlaylists = folder.querySelectorAll('.playlist-item');
-        const matchCount = Array.from(folderPlaylists).filter(playlist => {
-            const playlistName = playlist.querySelector('.text-truncate')?.textContent.toLowerCase() || '';
-            return playlistName.includes(normalizedSearch);
-        }).length;
-        folderMatches.set(folder, matchCount);
+        
+        folderPlaylists.forEach(playlist => {
+            const playlistName = playlist.querySelector('.playlist-name')?.textContent.toLowerCase() || '';
+            const isVisible = playlistName.includes(searchTerm) || folderName.includes(searchTerm);
+            playlist.style.display = isVisible ? '' : 'none';
+            if (isVisible) hasVisiblePlaylists = true;
+        });
+        
+        // Show folder if its name matches or if it has visible playlists
+        folder.style.display = (hasVisiblePlaylists || folderName.includes(searchTerm)) ? '' : 'none';
     });
     
-    // Second pass: hide/show playlists and folders
-    playlists.forEach(playlist => {
-        // Skip the Liked Songs playlist from filtering
-        if (playlist.querySelector('.liked-songs-icon')) {
-            playlist.setAttribute('data-hidden', 'false');
-            return;
-        }
-        
-        const playlistName = playlist.querySelector('.text-truncate')?.textContent.toLowerCase() || '';
-        const shouldShow = playlistName.includes(normalizedSearch);
-        playlist.setAttribute('data-hidden', (!shouldShow).toString());
-        
-        // If playlist is in a folder, update folder visibility
-        const parentFolder = playlist.closest('.playlist-folder');
-        if (parentFolder) {
-            const hasVisiblePlaylists = folderMatches.get(parentFolder) > 0;
-            parentFolder.setAttribute('data-hidden', (!hasVisiblePlaylists).toString());
+    // Handle root playlists (not in folders)
+    playlistItems.forEach(item => {
+        if (!item.closest('.playlist-folder')) {
+            const playlistName = item.querySelector('.playlist-name')?.textContent.toLowerCase() || '';
+            const isVisible = playlistName.includes(searchTerm);
+            console.log('Root playlist:', playlistName, 'isVisible:', isVisible);
+            item.style.display = isVisible ? '' : 'none';
         }
     });
 }
@@ -581,7 +580,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('playlistSearch');
     if (searchInput) {
         searchInput.addEventListener('input', (e) => {
-            filterPlaylists(e.target.value);
+            filterPlaylists();
         });
     }
 });
@@ -673,10 +672,79 @@ function renderPlaylistItem(playlist) {
 </script>
 
 <style>
+.library-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.section-header {
+    padding: 0 16px;
+    margin-top: 8px;
+    color: #b3b3b3;
+    font-size: 0.875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.liked-songs {
+    padding: 8px 16px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.liked-songs:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.liked-songs .playlist-item-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.liked-songs .playlist-image {
+    background: linear-gradient(135deg, #450af5, #c4efd9);
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+}
+
+.liked-songs .playlist-image i {
+    color: #fff;
+    font-size: 1.25rem;
+}
+
+.liked-songs .playlist-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.liked-songs .playlist-name {
+    color: #fff;
+    font-weight: 500;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.liked-songs .playlist-details {
+    color: #b3b3b3;
+    font-size: 0.875rem;
+}
+
 .playlist-list {
-    padding: 1rem;
-    overflow-y: auto;
-    height: calc(100vh - 120px);  /* Adjust based on header height */
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0 16px;
 }
 
 .playlist-item {
@@ -776,6 +844,10 @@ function renderPlaylistItem(playlist) {
     border: none;
     color: #fff;
     padding: 8px 0;
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: 0.25px;
+    transition: all 0.2s ease;
 }
 
 .form-control:focus {
@@ -785,15 +857,84 @@ function renderPlaylistItem(playlist) {
 }
 
 .form-control::placeholder {
-    color: #b3b3b3;
+    color: #969696;
+    opacity: 1;
+}
+
+.form-control:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.search-container {
+    padding: 8px 16px 24px 16px;
+    display: flex;
+    justify-content: center;
+}
+
+.search-input-wrapper {
+    position: relative;
+    width: 85%;
+    transition: all 0.2s ease;
+}
+
+.search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #969696;
+    font-size: 14px;
+    pointer-events: none;
+    transition: color 0.2s ease;
+    background-color: rgba(255, 255, 255, 0.05);
+    padding: 4px;
+    border-radius: 50%;
+}
+
+#playlistSearch {
+    width: 100%;
+    height: 32px;
+    padding: 6px 36px 6px 36px;
+    border-radius: 4px;
+    border: none;
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: 0.25px;
+    transition: all 0.2s ease;
+}
+
+#playlistSearch::placeholder {
+    color: #969696;
+    opacity: 1;
+}
+
+#playlistSearch:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+#playlistSearch:focus {
+    outline: none;
+    background-color: #282828;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+#playlistSearch:focus + .search-icon {
+    color: #fff;
+}
+
+.search-input-wrapper:hover .search-icon {
+    color: #fff;
 }
 
 .library-header {
-    padding: 16px;
+    padding: 8px;
+    border-radius: 4px;
+    background-color: #000;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    gap: 12px;
 }
 
 .library-title {
@@ -943,46 +1084,121 @@ function renderPlaylistItem(playlist) {
 .playlist-list {
     overflow-x: visible !important;
 }
+
+.sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+}
+
+.library-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.library-header i {
+    font-size: 24px;
+    color: #b3b3b3;
+}
+
+.library-header span {
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+.btn-sync {
+    background: transparent;
+    border: none;
+    color: #b3b3b3;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.btn-sync:hover {
+    color: #fff;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.btn-sync.sync-today {
+    color: #1ed760;
+}
+
+.btn-sync.sync-old {
+    color: #ff0000;
+}
+
+.btn-sync i {
+    font-size: 14px;
+}
+
+.btn-sync span {
+    font-size: 14px;
+    font-weight: 500;
+}
 </style>
 
 <div class="container-fluid">
     <div class="row">
         <!-- Sidebar with library and playlists -->
-        <div class="col-md-3 col-lg-2 sidebar">
+        <div class="col-md-2 sidebar">
             <!-- Library header -->
-            <div class="library-header">
-                <div class="library-title">
+            <div class="sidebar-header">
+                <div class="library-header">
                     <i class="fas fa-music"></i>
-                    Your Library
+                    <span>Your Library</span>
                 </div>
-                <button id="syncButton" class="sync-button" onclick="syncData()">
+                <button id="syncButton" onclick="syncData()" class="btn-sync sync-today">
                     <i class="fas fa-sync-alt"></i>
-                    Sync
+                    <span>Sync</span>
                 </button>
             </div>
 
             <!-- Search box -->
-            <div class="sidebar-section">
-                <div class="input-group">
-                    <span class="input-group-text bg-dark border-0 text-muted">
-                        <i class="fas fa-search"></i>
-                    </span>
-                    <input type="text" 
-                           class="form-control bg-dark border-0 text-white" 
-                           placeholder="Search for playlists"
-                           id="playlistSearch"
-                           onkeyup="filterPlaylists(this.value)">
+            <div class="search-container">
+                <div class="search-input-wrapper">
+                    <i class="fas fa-search search-icon"></i>
+                    <input type="text" id="playlistSearch" placeholder="Search in Your Library" oninput="filterPlaylists()">
                 </div>
             </div>
 
-            <!-- Playlist list -->
-            <div id="playlistList" class="playlist-list">
-                <!-- Playlists will be rendered here -->
+            <!-- Library sections -->
+            <div class="library-sections">
+                <!-- Liked Songs -->
+                <div class="liked-songs">
+                    <div class="playlist-item-content">
+                        <div class="playlist-image">
+                            <i class="fas fa-heart"></i>
+                        </div>
+                        <div class="playlist-info">
+                            <div class="playlist-name">Liked Songs</div>
+                            <div class="playlist-details">Playlist</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Playlists header -->
+                <div class="section-header">
+                    <span>Playlists</span>
+                </div>
+
+                <!-- Playlist list -->
+                <div id="playlistList" class="playlist-list">
+                    <!-- Playlists will be rendered here -->
+                </div>
             </div>
         </div>
 
         <!-- Main content -->
-        <div class="col-md-9 col-lg-10 main-content">
+        <div class="col-md-10 main-content">
             <div id="mainContent">
                 <!-- Content will be loaded here -->
             </div>
