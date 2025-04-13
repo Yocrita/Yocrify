@@ -1,16 +1,21 @@
 import os
 import json
-from flask import Flask, render_template, session, redirect, request, url_for, jsonify
+import logging
+from flask import Flask, render_template, session, redirect, request, url_for, jsonify, make_response
 from flask_cors import CORS
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from dotenv import load_dotenv
 import time
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app, supports_credentials=True)  # Enable CORS with credentials
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'your-secret-key-here')  # Use consistent secret key
 
 # Spotify OAuth Configuration
@@ -18,6 +23,11 @@ SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
 SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
 SPOTIFY_REDIRECT_URI = os.getenv('SPOTIFY_REDIRECT_URI')
 SCOPE = 'user-library-read playlist-read-private playlist-read-collaborative'
+
+# Log configuration values (without secrets)
+logger.info(f"Starting app with REDIRECT_URI: {SPOTIFY_REDIRECT_URI}")
+logger.info(f"Client ID configured: {'Yes' if SPOTIFY_CLIENT_ID else 'No'}")
+logger.info(f"Client Secret configured: {'Yes' if SPOTIFY_CLIENT_SECRET else 'No'}")
 
 def create_spotify_oauth():
     return SpotifyOAuth(
@@ -161,6 +171,14 @@ def format_duration(ms):
         return f"{hours}h {minutes}m"
     return f"{minutes}m {seconds}s"
 
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', request.headers.get('Origin', '*'))
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
+
 @app.route('/')
 def index():
     sp = get_spotify()
@@ -248,19 +266,25 @@ def logout():
 @app.route('/sync_library')
 def sync_library():
     try:
+        # Log request
+        logger.info("Starting sync_library request")
+        
         # Check if user is authenticated
         if 'token_info' not in session:
-            return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+            logger.error("User not authenticated")
+            return make_response(jsonify({'success': False, 'error': 'Not authenticated'}), 401)
 
         # Get user ID from session
         user_id = session.get('user_id')
         if not user_id:
-            return jsonify({'success': False, 'error': 'User ID not found in session'}), 400
+            logger.error("User ID not found in session")
+            return make_response(jsonify({'success': False, 'error': 'User ID not found in session'}), 400)
 
         # Get Spotify client
         sp = get_spotify()
         if not sp:
-            return jsonify({'success': False, 'error': 'Failed to create Spotify client'}), 500
+            logger.error("Failed to create Spotify client")
+            return make_response(jsonify({'success': False, 'error': 'Failed to create Spotify client'}), 500)
 
         # Get all user playlists
         playlists = []
@@ -269,10 +293,11 @@ def sync_library():
         try:
             while True:
                 try:
+                    logger.info(f"Fetching playlists at offset {offset}")
                     results = sp.current_user_playlists(offset=offset, limit=50)
                 except Exception as e:
-                    print(f"Error fetching playlists at offset {offset}: {str(e)}")
-                    return jsonify({'success': False, 'error': f"Error fetching playlists: {str(e)}"}), 502
+                    logger.error(f"Error fetching playlists at offset {offset}: {str(e)}")
+                    return make_response(jsonify({'success': False, 'error': f"Error fetching playlists: {str(e)}"}), 502)
                 
                 if not results or not results.get('items'):
                     break
@@ -307,8 +332,9 @@ def sync_library():
                                     playlist_data['tracks'].append(track_data)
                         
                         playlists.append(playlist_data)
+                        logger.info(f"Successfully processed playlist {playlist['id']}")
                     except Exception as e:
-                        print(f"Error processing playlist {playlist['id']}: {str(e)}")
+                        logger.error(f"Error processing playlist {playlist['id']}: {str(e)}")
                         continue
                 
                 offset += len(results['items'])
@@ -316,7 +342,8 @@ def sync_library():
                     break
 
             if not playlists:
-                return jsonify({'success': False, 'error': 'No playlists found'}), 404
+                logger.warning("No playlists found")
+                return make_response(jsonify({'success': False, 'error': 'No playlists found'}), 404)
 
             # Create a map of track IDs to playlists for finding duplicates
             track_playlist_map = {}
@@ -348,8 +375,9 @@ def sync_library():
                 
                 with open(filename, 'w', encoding='utf-8') as f:
                     json.dump(data, f, ensure_ascii=False)
+                logger.info(f"Successfully saved data for user {user_id}")
             except Exception as e:
-                print(f"Error saving data: {str(e)}")
+                logger.error(f"Error saving data: {str(e)}")
                 # Continue even if save fails - return data to client
             
             response = {
@@ -357,15 +385,16 @@ def sync_library():
                 'playlists': playlists,
                 'last_sync': data['last_sync']
             }
-            return jsonify(response), 200
+            logger.info("Sync completed successfully")
+            return make_response(jsonify(response), 200)
 
         except Exception as e:
-            print(f"Error in playlist processing: {str(e)}")
-            return jsonify({'success': False, 'error': f"Error processing playlists: {str(e)}"}), 500
+            logger.error(f"Error in playlist processing: {str(e)}")
+            return make_response(jsonify({'success': False, 'error': f"Error processing playlists: {str(e)}"}), 500)
 
     except Exception as e:
-        print(f"Error in sync_library: {str(e)}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f"Error in sync_library: {str(e)}")
+        return make_response(jsonify({'success': False, 'error': str(e)}), 500)
 
 @app.route('/playlist/<playlist_id>')
 def get_playlist(playlist_id):
