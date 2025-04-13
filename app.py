@@ -1,6 +1,6 @@
 import os
 import json
-from flask import Flask, render_template, session, redirect, request, url_for, jsonify
+from flask import Flask, render_template, session, redirect, request, url_for, jsonify, send_from_directory
 from flask_cors import CORS
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
@@ -246,76 +246,100 @@ def sync_library():
         if not sp:
             return jsonify({'success': False, 'error': 'Not authenticated'})
 
-        # Get all user playlists
+        # Get user ID for data storage
+        user_info = sp.current_user()
+        user_id = user_info['id']
+        session['user_id'] = user_id
+
+        # Initialize empty lists for all data
         playlists = []
-        offset = 0
-        while True:
-            results = sp.current_user_playlists(offset=offset)
-            if not results['items']:
-                break
-            
-            for playlist in results['items']:
-                # Get full playlist details including tracks
-                full_playlist = sp.playlist(playlist['id'])
-                
-                # Extract folder name if present (format: "folder / playlist")
-                name_parts = full_playlist['name'].split(' / ', 1)
-                folder = name_parts[0] if len(name_parts) > 1 else None
-                playlist_name = name_parts[1] if len(name_parts) > 1 else name_parts[0]
-                
-                playlist_data = {
-                    'id': full_playlist['id'],
-                    'name': full_playlist['name'],  # Keep original name with folder
-                    'images': full_playlist['images'],
-                    'tracks_total': full_playlist['tracks']['total'],
-                    'duration_ms': sum(track['track']['duration_ms'] for track in full_playlist['tracks']['items'] if track['track']),
-                    'tracks': [{'id': track['track']['id'], 
-                              'name': track['track']['name'],
-                              'other_playlists': []} for track in full_playlist['tracks']['items'] if track['track']]
-                }
-                playlists.append(playlist_data)
-            
-            offset += len(results['items'])
-            if len(results['items']) < 50:
-                break
-
-        # Create a map of track IDs to playlists for finding duplicates
+        all_tracks = {}
         track_playlist_map = {}
-        for playlist in playlists:
-            for track in playlist['tracks']:
-                if track['id'] not in track_playlist_map:
-                    track_playlist_map[track['id']] = []
-                track_playlist_map[track['id']].append(playlist['id'])
-
-        # Update tracks with other playlist information
-        for playlist in playlists:
-            for track in playlist['tracks']:
-                track['other_playlists'] = [p_id for p_id in track_playlist_map[track['id']] 
-                                          if p_id != playlist['id']]
-
-        # Save optimized data
-        data = {
-            'playlists': playlists,
-            'last_sync': int(time.time())
-        }
         
-        # Save to user-specific file
-        user_id = session.get('user_id')
-        if not user_id:
-            return jsonify({'success': False, 'error': 'User ID not found in session'})
+        try:
+            # Get user's playlists with retry
+            results = fetch_with_retry(sp.current_user_playlists)
             
-        filename = os.path.join('data', f'{user_id}.json')
-        os.makedirs('data', exist_ok=True)
-        
-        with open(filename, 'w') as f:
-            json.dump(data, f)
-
-        return jsonify({
-            'success': True,
-            'playlists': playlists,
-            'last_sync': data['last_sync']
-        })
-
+            while True:
+                for item in results['items']:
+                    try:
+                        # Get full playlist data with retry
+                        full_playlist = fetch_with_retry(sp.playlist, item['id'])
+                        
+                        # Basic playlist info
+                        playlist_data = {
+                            'id': item['id'],
+                            'name': item['name'],
+                            'description': item.get('description', ''),
+                            'image': item['images'][0]['url'] if item['images'] else None,
+                            'tracks': []
+                        }
+                        
+                        # Get all tracks for this playlist
+                        tracks = []
+                        track_results = full_playlist['tracks']
+                        
+                        while True:
+                            for track_item in track_results['items']:
+                                if track_item['track']:  # Ensure track exists
+                                    track = track_item['track']
+                                    track_data = {
+                                        'id': track['id'],
+                                        'name': track['name'],
+                                        'duration_ms': track['duration_ms'],
+                                        'artists': [artist['name'] for artist in track['artists']],
+                                        'album': track['album']['name'],
+                                        'image': track['album']['images'][0]['url'] if track['album']['images'] else None
+                                    }
+                                    tracks.append(track_data)
+                                    
+                                    # Update track-playlist mapping
+                                    if track['id'] not in track_playlist_map:
+                                        track_playlist_map[track['id']] = []
+                                    track_playlist_map[track['id']].append({
+                                        'id': playlist_data['id'],
+                                        'name': playlist_data['name']
+                                    })
+                            
+                            if not track_results['next']:
+                                break
+                                
+                            track_results = fetch_with_retry(sp.next, track_results)
+                        
+                        # Store tracks for this playlist
+                        all_tracks[item['id']] = tracks
+                        playlist_data['tracks'] = tracks
+                        playlists.append(playlist_data)
+                        
+                    except Exception as e:
+                        print(f"Error processing playlist {item['id']}: {str(e)}")
+                        continue
+                
+                if not results['next']:
+                    break
+                    
+                results = fetch_with_retry(sp.next, results)
+            
+            # Save optimized data
+            data = {
+                'playlists': playlists,
+                'tracks': all_tracks,
+                'last_sync': int(time.time())
+            }
+            
+            # Save to user-specific file
+            save_user_data(user_id, data)
+            
+            return jsonify({
+                'success': True,
+                'playlists': playlists,
+                'last_sync': data['last_sync']
+            })
+            
+        except Exception as e:
+            print(f"Error in playlist sync: {str(e)}")
+            return jsonify({'success': False, 'error': str(e)})
+            
     except Exception as e:
         print(f"Error in sync_library: {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
@@ -373,6 +397,11 @@ def get_playlists():
     except Exception as e:
         print(f"Error getting playlists: {str(e)}")
         return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(os.path.join(app.root_path, 'static'),
+                             'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
