@@ -502,22 +502,35 @@ async function syncData() {
     showLoading(true);
     try {
         const response = await fetch('/sync_library');
-        const data = await response.json();
+        let data;
+        
+        try {
+            const text = await response.text();
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                console.error('Failed to parse JSON response:', text);
+                throw new Error('Server returned invalid JSON');
+            }
+        } catch (e) {
+            console.error('Failed to read response:', e);
+            throw new Error('Failed to read server response');
+        }
         
         if (!response.ok) {
-            if (response.status === 401 && data.redirect) {
+            if (response.status === 401 && data && data.redirect) {
                 // Redirect to login if authentication failed
                 window.location.href = data.redirect;
                 return;
             }
-            throw new Error(data.error || `HTTP error! status: ${response.status}`);
+            throw new Error(data?.error || `HTTP error! status: ${response.status}`);
         }
         
-        if (data.success) {
+        if (data && data.success) {
             showToast('Library synchronized successfully!');
             window.location.reload(); // Reload to show new playlists
         } else {
-            throw new Error(data.error || 'Unknown error occurred');
+            throw new Error(data?.error || 'Unknown error occurred');
         }
     } catch (error) {
         console.error('Sync error:', error);
