@@ -224,39 +224,58 @@ def index():
 
 @app.route('/login')
 def login():
-    # Clear any existing session
-    session.clear()
-    
-    sp_oauth = create_spotify_oauth()
-    auth_url = sp_oauth.get_authorize_url()
-    return redirect(auth_url)
+    try:
+        # Create OAuth instance
+        sp_oauth = create_spotify_oauth()
+        
+        # Get the authorization URL
+        auth_url = sp_oauth.get_authorize_url()
+        
+        # Store any 'next' URL in the session
+        if 'next_url' not in session:
+            session['next_url'] = '/'
+            
+        logger.info(f"Redirecting to Spotify auth, will return to: {session.get('next_url')}")
+        return redirect(auth_url)
+        
+    except Exception as e:
+        logger.error(f"Error in login: {str(e)}")
+        return redirect('/')
 
 @app.route('/callback')
 def callback():
-    sp_oauth = create_spotify_oauth()
-    session.clear()
-    
-    code = request.args.get('code')
-    error = request.args.get('error')
-    
-    if error:
-        return f"Error during authentication: {error}"
-    
-    if not code:
-        return redirect(url_for('login'))
-    
     try:
+        # Get OAuth instance
+        sp_oauth = create_spotify_oauth()
+        
+        # Clear existing session
+        session.clear()
+        
+        # Get the code from request parameters
+        code = request.args.get('code')
+        
+        # Exchange code for token
         token_info = sp_oauth.get_access_token(code)
+        
+        # Store token info in session
         session['token_info'] = token_info
         
-        # Get and store user ID in session
+        # Get user info
         sp = spotipy.Spotify(auth=token_info['access_token'])
         user_info = sp.current_user()
-        session['user_id'] = user_info['id']
         
-        return redirect(url_for('index'))
+        # Store user ID in session
+        session['user_id'] = user_info['id']
+        logger.info(f"User {user_info['id']} successfully authenticated")
+        
+        # Redirect to the stored next_url or home
+        next_url = session.pop('next_url', '/')
+        logger.info(f"Redirecting to: {next_url}")
+        return redirect(next_url)
+        
     except Exception as e:
-        return f"Error getting access token: {str(e)}"
+        logger.error(f"Error in callback: {str(e)}")
+        return redirect('/')
 
 @app.route('/logout')
 def logout():
@@ -271,8 +290,10 @@ def sync_library():
         
         # Check if user is authenticated
         if 'token_info' not in session:
-            logger.error("User not authenticated")
-            return make_response(jsonify({'success': False, 'error': 'Not authenticated'}), 401)
+            logger.info("User not authenticated, redirecting to Spotify login")
+            # Store the intended destination
+            session['next_url'] = '/sync_library'
+            return redirect('/login')
 
         # Get user ID from session
         user_id = session.get('user_id')
