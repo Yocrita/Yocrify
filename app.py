@@ -10,8 +10,21 @@ import time
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'your-secret-key-here')  # Use consistent secret key
+CORS(app)  # Enable CORS for all routes
+
+# Ensure data directory exists
+DATA_DIR = '/data'
+try:
+    os.makedirs(DATA_DIR, exist_ok=True)
+    # Test write permissions
+    test_file = os.path.join(DATA_DIR, 'test.txt')
+    with open(test_file, 'w') as f:
+        f.write('test')
+    os.remove(test_file)
+    print("Data directory is writable:", DATA_DIR)
+except Exception as e:
+    print(f"Error setting up data directory: {str(e)}")
 
 # Spotify OAuth Configuration
 SPOTIFY_CLIENT_ID = os.getenv('SPOTIFY_CLIENT_ID')
@@ -85,19 +98,29 @@ def get_all_items(sp, initial_request, get_next):
 
 # Add data storage functions
 def save_user_data(user_id, data):
-    data_dir = '/data'  # Use the mounted disk path
-    os.makedirs(data_dir, exist_ok=True)
-    
-    file_path = os.path.join(data_dir, f'{user_id}.json')
-    with open(file_path, 'w', encoding='utf-8') as f:
-        json.dump(data, f)
+    try:
+        file_path = os.path.join(DATA_DIR, f'{user_id}.json')
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f)
+        print(f"Successfully saved data for user {user_id}")
+        return True
+    except Exception as e:
+        print(f"Error saving data for user {user_id}: {str(e)}")
+        return False
 
 def load_user_data(user_id):
-    file_path = os.path.join('/data', f'{user_id}.json')
-    if os.path.exists(file_path):
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return None
+    try:
+        file_path = os.path.join(DATA_DIR, f'{user_id}.json')
+        if os.path.exists(file_path):
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                print(f"Successfully loaded data for user {user_id}")
+                return data
+        print(f"No data file found for user {user_id}")
+        return None
+    except Exception as e:
+        print(f"Error loading data for user {user_id}: {str(e)}")
+        return None
 
 def optimize_playlist_data(playlist, tracks, track_playlist_map):
     """Pre-calculate and cache useful playlist information"""
@@ -174,7 +197,7 @@ def index():
         session['user_id'] = user_id
         
         # Look for user's data file
-        data_dir = '/data'
+        data_dir = DATA_DIR
         user_file = os.path.join(data_dir, f'{user_id}.json')
         
         if os.path.exists(user_file):
@@ -247,12 +270,12 @@ def logout():
 def sync_library():
     try:
         # Check data directory
-        if not os.path.exists('/data'):
+        if not os.path.exists(DATA_DIR):
             print("Data directory does not exist, creating...")
-            os.makedirs('/data', exist_ok=True)
+            os.makedirs(DATA_DIR, exist_ok=True)
             
         # Test write permissions
-        test_file = os.path.join('/data', 'test.txt')
+        test_file = os.path.join(DATA_DIR, 'test.txt')
         try:
             with open(test_file, 'w') as f:
                 f.write('test')
@@ -400,7 +423,7 @@ def sync_library():
 def get_playlist(playlist_id):
     try:
         # Load data from JSON
-        data_dir = '/data'
+        data_dir = DATA_DIR
         json_files = [f for f in os.listdir(data_dir) if f.endswith('.json')]
         
         if not json_files:
@@ -431,7 +454,7 @@ def get_playlist(playlist_id):
 def get_playlists():
     try:
         # Load data from JSON
-        data_dir = '/data'
+        data_dir = DATA_DIR
         json_files = [f for f in os.listdir(data_dir) if f.endswith('.json')]
         
         if not json_files:
