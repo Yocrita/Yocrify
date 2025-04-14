@@ -340,12 +340,12 @@ def sync_library():
             )
             
         try:
-            # Get only 2 playlists for testing
-            results = sp.current_user_playlists(limit=2)
+            # Get 10 playlists for testing
+            results = sp.current_user_playlists(limit=10)
             playlists = []
             track_playlist_map = {}  # Map track IDs to playlists
             
-            # Process only the first page (max 2 playlists)
+            # Process first 10 playlists
             for item in results['items']:
                 print(f"Processing playlist: {item['name']}")  # Debug log
                 # Get full playlist data including tracks
