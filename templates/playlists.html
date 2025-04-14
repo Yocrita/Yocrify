@@ -496,67 +496,66 @@ function updateSyncButtonState() {
     }
 }
 
-async function syncData() {
+function syncData() {
     showLoading(true);
     const syncButton = document.getElementById('syncButton');
     if (syncButton) {
         syncButton.disabled = true;
     }
 
-    fetch('/sync_library')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            const reader = response.body.getReader();
-            let decoder = new TextDecoder();
+    // Create EventSource for Server-Sent Events
+    const eventSource = new EventSource('/sync_library');
+    let finalData = null;
 
-            function readStream() {
-                return reader.read().then(({value, done}) => {
-                    if (done) {
-                        return;
-                    }
-                    const chunk = decoder.decode(value, {stream: true});
-                    try {
-                        const data = JSON.parse(chunk);
-                        if (data.progress) {
-                            const progressEl = document.getElementById('syncProgress');
-                            if (progressEl) {
-                                progressEl.textContent = `Step ${data.progress.current}/${data.progress.total}`;
-                            }
-                        }
-                    } catch (e) {
-                        console.log('Progress chunk:', chunk);
-                    }
-                    return readStream();
-                });
+    eventSource.onmessage = function(event) {
+        try {
+            const data = JSON.parse(event.data);
+            
+            // Handle progress updates
+            if (data.progress) {
+                const progressEl = document.getElementById('syncProgress');
+                if (progressEl) {
+                    progressEl.textContent = `Step ${data.progress.current}/${data.progress.total}`;
+                }
             }
+            // Handle final response
+            else if (data.success !== undefined) {
+                finalData = data;
+                eventSource.close();
+            }
+        } catch (e) {
+            console.error('Error parsing event data:', e);
+        }
+    };
 
-            return readStream().then(() => response.json());
-        })
-        .then(data => {
-            showLoading(false);
-            if (syncButton) {
-                syncButton.disabled = false;
-            }
-            if (data.success) {
-                window.initialData.playlists = data.playlists;
-                window.initialData.lastSync = data.last_sync;
-                renderPlaylists(data.playlists);
+    eventSource.onerror = function(error) {
+        console.error('EventSource error:', error);
+        eventSource.close();
+        showLoading(false);
+        if (syncButton) {
+            syncButton.disabled = false;
+        }
+        showToast('Failed to sync library. Please try again.', true);
+    };
+
+    eventSource.onclose = function() {
+        showLoading(false);
+        if (syncButton) {
+            syncButton.disabled = false;
+        }
+        
+        if (finalData) {
+            if (finalData.success) {
+                window.initialData.playlists = finalData.playlists;
+                window.initialData.lastSync = finalData.last_sync;
+                renderPlaylists(finalData.playlists);
                 showToast('Library synchronized successfully!');
                 updateSyncButtonState();
             } else {
-                showToast(data.error || 'Failed to sync library', true);
+                showToast(finalData.error || 'Failed to sync library', true);
             }
-        })
-        .catch(error => {
-            showLoading(false);
-            if (syncButton) {
-                syncButton.disabled = false;
-            }
-            console.error('Error:', error);
-            showToast('Failed to sync library. Please try again.', true);
-        });
+        }
+    };
 }
 
 function filterTracks(searchTerm) {

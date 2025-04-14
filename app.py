@@ -373,19 +373,19 @@ def sync_library():
             current_batch = 1
             processed = 0
             
-            def send_progress():
-                progress = {
-                    'progress': {
-                        'current': current_batch,
-                        'total': total_batches
-                    }
-                }
-                return f"data: {json.dumps(progress)}\n\n"
+            def format_sse(data):
+                return f"data: {json.dumps(data)}\n\n"
             
             def generate():
                 nonlocal current_batch, processed, playlists
                 
-                yield send_progress()
+                # Send initial progress
+                yield format_sse({
+                    'progress': {
+                        'current': current_batch,
+                        'total': total_batches
+                    }
+                })
                 
                 while results and processed < total_to_process:
                     try:
@@ -497,7 +497,12 @@ def sync_library():
                                     time.sleep(1)  # Wait before retry
                         
                         current_batch += 1
-                        yield send_progress()
+                        yield format_sse({
+                            'progress': {
+                                'current': current_batch,
+                                'total': total_batches
+                            }
+                        })
                         
                     except Exception as e:
                         print(f"Error processing batch: {str(e)}")
@@ -505,7 +510,12 @@ def sync_library():
                         if processed < total_to_process and results['next']:
                             results = sp.next(results)
                             current_batch += 1
-                            yield send_progress()
+                            yield format_sse({
+                                'progress': {
+                                    'current': current_batch,
+                                    'total': total_batches
+                                }
+                            })
                         else:
                             break
                 
@@ -522,13 +532,27 @@ def sync_library():
                         print("Data saved successfully")
                     except Exception as e:
                         print(f"Error saving data: {str(e)}")
-                        yield f"data: {json.dumps({'success': False, 'error': 'Failed to save data'})}\n\n"
+                        yield format_sse({
+                            'success': False,
+                            'error': 'Failed to save data'
+                        })
                         return
                 
                 # Send final success response
-                yield f"data: {json.dumps({'success': True, 'playlists': playlists, 'last_sync': data['last_sync']})}\n\n"
+                yield format_sse({
+                    'success': True,
+                    'playlists': playlists,
+                    'last_sync': data['last_sync']
+                })
             
-            return Response(generate(), mimetype='text/event-stream')
+            return Response(
+                generate(),
+                mimetype='text/event-stream',
+                headers={
+                    'Cache-Control': 'no-cache',
+                    'Connection': 'keep-alive'
+                }
+            )
             
         except Exception as e:
             print(f"Error in playlist sync: {str(e)}")
