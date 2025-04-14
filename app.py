@@ -1,17 +1,39 @@
 import os
 import json
-from flask import Flask, render_template, session, redirect, request, url_for, jsonify, send_from_directory
+from flask import Flask, render_template, session, redirect, request, url_for, jsonify, send_from_directory, Response
 from flask_cors import CORS
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from dotenv import load_dotenv
 import time
+from werkzeug.exceptions import HTTPException
 
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'your-secret-key-here')  # Use consistent secret key
 CORS(app)  # Enable CORS for all routes
+
+# Error handling middleware
+@app.errorhandler(Exception)
+def handle_error(error):
+    print(f"\n=== Error Handler ===")
+    print(f"Error type: {type(error)}")
+    print(f"Error message: {str(error)}")
+    
+    response = {
+        'success': False,
+        'error': 'An unexpected error occurred. Please try again.'
+    }
+    
+    if isinstance(error, HTTPException):
+        response['error'] = error.description
+        status_code = error.code
+    else:
+        status_code = 500
+        
+    print(f"Returning error response: {response}")
+    return jsonify(response), status_code
 
 # Ensure data directory exists
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'user_data')
@@ -300,7 +322,11 @@ def sync_library():
                 'redirect': url_for('login')
             }
             print("Returning response:", response)
-            return jsonify(response), 401
+            return app.response_class(
+                response=json.dumps(response),
+                status=401,
+                mimetype='application/json'
+            )
 
         # Get user info first
         try:
@@ -313,7 +339,11 @@ def sync_library():
                     'redirect': url_for('login')
                 }
                 print("Returning response:", response)
-                return jsonify(response), 401
+                return app.response_class(
+                    response=json.dumps(response),
+                    status=401,
+                    mimetype='application/json'
+                )
                 
             user_id = user_info['id']
             session['user_id'] = user_id
@@ -327,7 +357,11 @@ def sync_library():
                 'redirect': url_for('login')
             }
             print("Returning response:", response)
-            return jsonify(response), 401
+            return app.response_class(
+                response=json.dumps(response),
+                status=401,
+                mimetype='application/json'
+            )
 
         # Check data directory
         if not os.path.exists(DATA_DIR):
@@ -341,7 +375,11 @@ def sync_library():
                     'error': 'Server storage is not accessible. Please try again later.'
                 }
                 print("Returning response:", response)
-                return jsonify(response), 500
+                return app.response_class(
+                    response=json.dumps(response),
+                    status=500,
+                    mimetype='application/json'
+                )
             
         # Test write permissions
         test_file = os.path.join(DATA_DIR, 'test.txt')
@@ -357,12 +395,15 @@ def sync_library():
                 'error': 'Server storage is not accessible. Please try again later.'
             }
             print("Returning response:", response)
-            return jsonify(response), 500
+            return app.response_class(
+                response=json.dumps(response),
+                status=500,
+                mimetype='application/json'
+            )
 
         # Initialize empty lists for all data
         playlists = []
         all_tracks = {}
-        track_playlist_map = {}
         
         try:
             # Get user's playlists with retry
@@ -375,7 +416,11 @@ def sync_library():
                     'error': 'Failed to fetch playlists. Please try again.'
                 }
                 print("Returning response:", response)
-                return jsonify(response), 500
+                return app.response_class(
+                    response=json.dumps(response),
+                    status=500,
+                    mimetype='application/json'
+                )
             
             print(f"Found {len(results['items'])} playlists")
             
@@ -422,7 +467,11 @@ def sync_library():
                     'error': 'Failed to save data. Please try again.'
                 }
                 print("Returning response:", response)
-                return jsonify(response), 500
+                return app.response_class(
+                    response=json.dumps(response),
+                    status=500,
+                    mimetype='application/json'
+                )
             
             print("Sync completed successfully")
             response = {
@@ -431,7 +480,11 @@ def sync_library():
                 'last_sync': data['last_sync']
             }
             print("Returning response:", response)
-            return jsonify(response)
+            return app.response_class(
+                response=json.dumps(response),
+                status=200,
+                mimetype='application/json'
+            )
             
         except Exception as e:
             print(f"Error in playlist sync: {str(e)}")
@@ -440,7 +493,11 @@ def sync_library():
                 'error': 'Failed to sync playlists. Please try again.'
             }
             print("Returning response:", response)
-            return jsonify(response), 500
+            return app.response_class(
+                response=json.dumps(response),
+                status=500,
+                mimetype='application/json'
+            )
             
     except Exception as e:
         print(f"Error in sync_library: {str(e)}")
@@ -449,7 +506,11 @@ def sync_library():
             'error': 'An unexpected error occurred. Please try again.'
         }
         print("Returning response:", response)
-        return jsonify(response), 500
+        return app.response_class(
+            response=json.dumps(response),
+            status=500,
+            mimetype='application/json'
+        )
 
 @app.route('/playlist/<playlist_id>')
 def get_playlist(playlist_id):
