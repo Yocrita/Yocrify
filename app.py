@@ -324,6 +324,28 @@ def logout():
     session.clear()
     return redirect(url_for('index'))
 
+def get_playlist_folder_info(sp):
+    """Get playlist folder information from Spotify"""
+    try:
+        # First, get all folders
+        folders_response = sp._get('me/folders')  # Using internal _get since this is not in spotipy yet
+        folders = folders_response.get('items', [])
+        
+        # Then get folder contents
+        folder_contents = {}
+        for folder in folders:
+            folder_id = folder['id']
+            contents = sp._get(f'folders/{folder_id}/items')
+            folder_contents[folder_id] = {
+                'name': folder['name'],
+                'items': contents.get('items', [])
+            }
+        
+        return folders, folder_contents
+    except Exception as e:
+        print(f"Error getting folder info: {str(e)}")
+        return [], {}
+
 @app.route('/sync_library')
 def sync_library():
     try:
@@ -340,28 +362,39 @@ def sync_library():
             )
             
         try:
-            # Get 10 playlists for testing
+            # Get folder structure first
+            folders, folder_contents = get_playlist_folder_info(sp)
+            
+            # Get playlists (10 for testing)
             results = sp.current_user_playlists(limit=10)
             playlists = []
-            track_playlist_map = {}  # Map track IDs to playlists
+            track_playlist_map = {}
             
-            # Process first 10 playlists
+            # Create a map of playlist IDs to their folder info
+            playlist_folder_map = {}
+            for folder_id, content in folder_contents.items():
+                for item in content['items']:
+                    if item['type'] == 'playlist':
+                        playlist_folder_map[item['uri'].split(':')[-1]] = {
+                            'folder_id': folder_id,
+                            'folder_name': content['name']
+                        }
+            
+            # Process playlists
             for item in results['items']:
-                print(f"Processing playlist: {item['name']}")  # Debug log
-                # Get full playlist data including tracks
+                print(f"Processing playlist: {item['name']}")
                 full_playlist = sp.playlist(item['id'])
                 
-                # Get all tracks for the playlist
+                # Get all tracks
                 playlist_tracks = []
                 tracks_results = sp.playlist_tracks(item['id'])
                 
                 while tracks_results:
                     for track_item in tracks_results['items']:
-                        if track_item['track']:  # Ensure track exists
+                        if track_item['track']:
                             track = track_item['track']
                             playlist_tracks.append(track)
                             
-                            # Update track_playlist_map
                             if track['id'] not in track_playlist_map:
                                 track_playlist_map[track['id']] = []
                             track_playlist_map[track['id']].append({
@@ -373,7 +406,14 @@ def sync_library():
                         break
                     tracks_results = sp.next(tracks_results)
                 
-                print(f"Found {len(playlist_tracks)} tracks in playlist {item['name']}")  # Debug log
+                print(f"Found {len(playlist_tracks)} tracks in playlist {item['name']}")
+                
+                # Add folder information to the playlist
+                folder_info = playlist_folder_map.get(item['id'], {})
+                full_playlist['folder'] = {
+                    'id': folder_info.get('folder_id'),
+                    'name': folder_info.get('folder_name')
+                } if folder_info else None
                 
                 # Optimize playlist data
                 optimized_playlist = optimize_playlist_data(full_playlist, playlist_tracks, track_playlist_map)
@@ -381,6 +421,7 @@ def sync_library():
             
             # Save the data
             data = {
+                'folders': folders,
                 'playlists': playlists,
                 'last_sync': int(time.time())
             }
@@ -414,6 +455,7 @@ def sync_library():
             
             response = {
                 'success': True,
+                'folders': folders,
                 'playlists': playlists,
                 'last_sync': data['last_sync']
             }

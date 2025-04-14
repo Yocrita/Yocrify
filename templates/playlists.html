@@ -204,10 +204,13 @@ function renderPlaylistItem(playlist) {
     const duplicateSongsCount = playlist.tracks?.reduce((total, track) => 
         total + (track.other_playlists?.length || 0), 0) || 0;
 
+    const folderClass = playlist.folder ? `data-folder="${playlist.folder.id}"` : '';
+    
     return `
         <div class="playlist-item" 
              data-playlist-id="${escapeHtml(playlist.id)}"
              onclick="loadPlaylist('${escapeHtml(playlist.id)}')"
+             ${folderClass}
              data-hidden="false"
              title="${escapeHtml(playlist.name)}">
             <div class="playlist-item-content">
@@ -654,48 +657,51 @@ function initializeTooltips() {
 
 </script>
 
-<script>
-function renderPlaylistItem(playlist) {
-    console.log('Rendering playlist item:', playlist);
-    
-    // Get the first image, or use a default
-    const image = playlist.images && playlist.images.length > 0 
-        ? playlist.images[0].url 
-        : 'https://via.placeholder.com/50';
-        
-    // Calculate songs that appear in other playlists
-    const duplicateSongsCount = playlist.tracks?.reduce((total, track) => 
-        total + (track.other_playlists?.length || 0), 0) || 0;
-
-    return `
-        <div class="playlist-item" 
-             data-playlist-id="${escapeHtml(playlist.id)}"
-             onclick="loadPlaylist('${escapeHtml(playlist.id)}')"
-             data-hidden="false"
-             title="${escapeHtml(playlist.name)}">
-            <div class="playlist-item-content">
-                <div class="playlist-image">
-                    <img src="${escapeHtml(image)}" alt="${escapeHtml(playlist.name)}">
-                </div>
-                <div class="playlist-info">
-                    <div class="playlist-name">${escapeHtml(playlist.name)}</div>
-                    <div class="playlist-details">
-                        <span class="playlist-tracks">${playlist.tracks_total || 0} tracks</span>
-                        ${formatDuration(playlist.duration_ms || 0)}
-                    </div>
-                </div>
-                <div class="badge-container">
-                    ${duplicateSongsCount > 0 ? `
-                        <div class="duplicate-badge">${duplicateSongsCount}</div>
-                    ` : ''}
-                </div>
-            </div>
-        </div>
-    `;
-}
-</script>
-
 <style>
+.folder {
+    padding: 8px 16px;
+    background-color: #282828;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    transition: background-color 0.2s;
+}
+
+.folder:hover {
+    background-color: #333;
+}
+
+.folder-icon {
+    margin-right: 12px;
+    color: #b3b3b3;
+}
+
+.folder-name {
+    font-size: 16px;
+    font-weight: 500;
+    color: #fff;
+}
+
+.playlist-item {
+    padding: 8px 16px;
+}
+
+.playlist-item[data-folder] {
+    margin-left: 24px;  /* Indent playlist items in folders */
+}
+
+.folder-header {
+    color: #b3b3b3;
+    font-size: 14px;
+    margin: 16px 0 8px;
+    padding: 0 16px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
 .library-sections {
     display: flex;
     flex-direction: column;
