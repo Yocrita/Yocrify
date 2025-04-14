@@ -384,16 +384,50 @@ def sync_library():
             processed = 0
             
             def format_sse(data):
-                return f"data: {json.dumps(data)}\n\n"
-            
+                """Format data for SSE, ensuring proper JSON serialization"""
+                try:
+                    # Convert data to a simple dict with primitive types
+                    if isinstance(data, dict):
+                        # Handle progress updates
+                        if 'progress' in data:
+                            progress = data['progress']
+                            data = {
+                                'type': 'progress',
+                                'data': {
+                                    'current': int(progress.get('current', 0)),
+                                    'total': int(progress.get('total', 0)),
+                                    'playlist': str(progress.get('playlist', ''))
+                                }
+                            }
+                        # Handle final response
+                        elif 'success' in data:
+                            data = {
+                                'type': 'complete',
+                                'data': {
+                                    'success': bool(data.get('success')),
+                                    'error': str(data.get('error', '')),
+                                    'playlists': data.get('playlists', []),
+                                    'last_sync': int(data.get('last_sync', 0))
+                                }
+                            }
+                    
+                    # Ensure JSON serialization works
+                    json_str = json.dumps(data, default=str)
+                    return f"data: {json_str}\n\n"
+                except Exception as e:
+                    print(f"Error formatting SSE data: {str(e)}")
+                    # Return a simple error message that will definitely serialize
+                    return f"data: {{\"type\":\"error\",\"message\":\"Internal server error\"}}\n\n"
+
             def generate():
                 nonlocal current_batch, processed, playlists
                 
                 # Send initial progress
                 yield format_sse({
                     'progress': {
-                        'current': current_batch,
-                        'total': total_batches
+                        'current': 1,
+                        'total': total_batches,
+                        'playlist': 'Starting...'
                     }
                 })
                 

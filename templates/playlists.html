@@ -510,10 +510,14 @@ function syncData() {
     let isCleaned = false;
 
     // Update progress display
-    function updateProgress(current, total) {
+    function updateProgress(current, total, playlist = '') {
         const progressEl = document.getElementById('syncProgress');
         if (progressEl) {
-            progressEl.textContent = `Step ${current}/${total}`;
+            let text = `Step ${current}/${total}`;
+            if (playlist) {
+                text += `\n${playlist}`;
+            }
+            progressEl.innerHTML = text.replace('\n', '<br>');
         }
     }
 
@@ -534,6 +538,8 @@ function syncData() {
     }
 
     function handleSuccess(data) {
+        if (!data) return;
+        
         if (data.success) {
             window.initialData.playlists = data.playlists;
             window.initialData.lastSync = data.last_sync;
@@ -545,36 +551,53 @@ function syncData() {
         }
     }
 
+    function handleMessage(event) {
+        try {
+            const message = JSON.parse(event.data);
+            console.log('SSE message:', message);
+            
+            // Reset retry count on successful message
+            retryCount = 0;
+            
+            switch (message.type) {
+                case 'progress':
+                    const progress = message.data;
+                    updateProgress(
+                        progress.current,
+                        progress.total,
+                        progress.playlist
+                    );
+                    break;
+                    
+                case 'complete':
+                    finalData = message.data;
+                    cleanup();
+                    handleSuccess(finalData);
+                    break;
+                    
+                case 'error':
+                    console.error('Server error:', message.message);
+                    cleanup();
+                    showToast(message.message || 'Server error occurred', true);
+                    break;
+                    
+                default:
+                    console.warn('Unknown message type:', message.type);
+            }
+        } catch (e) {
+            console.error('Error parsing event data:', e);
+            cleanup();
+            showToast('Error processing server response', true);
+        }
+    }
+
     function initEventSource() {
         if (isCleaned) return;
         
         try {
             eventSource = new EventSource('/sync_library', { withCredentials: true });
             
-            eventSource.onmessage = function(event) {
-                try {
-                    const data = JSON.parse(event.data);
-                    console.log('SSE message:', data);
-                    
-                    // Reset retry count on successful message
-                    retryCount = 0;
-                    
-                    // Handle progress updates
-                    if (data.progress) {
-                        updateProgress(data.progress.current, data.progress.total);
-                    }
-                    // Handle final response
-                    else if (data.success !== undefined) {
-                        finalData = data;
-                        cleanup();
-                        handleSuccess(finalData);
-                    }
-                } catch (e) {
-                    console.error('Error parsing event data:', e);
-                    showToast('Error processing server response', true);
-                    cleanup();
-                }
-            };
+            eventSource.onmessage = handleMessage;
 
             eventSource.onerror = function(error) {
                 console.error('EventSource error:', error);
