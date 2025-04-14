@@ -354,11 +354,11 @@ def sync_library():
             )
             
         try:
-            # Get playlists (limit 20)
+            # Get playlists (limit 50)
             playlists = []
             track_playlist_map = {}
             
-            results = sp.current_user_playlists(limit=20)
+            results = sp.current_user_playlists(limit=50)
             print(f"Processing {len(results['items'])} playlists")
             
             # Process playlists
