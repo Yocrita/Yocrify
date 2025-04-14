@@ -367,27 +367,31 @@ def sync_library():
             track_playlist_map = {}
             
             # Get first batch of playlists
-            results = sp.current_user_playlists(limit=20)
-            total_playlists = results['total']
+            results = sp.current_user_playlists(limit=5)  # Smaller batch size
+            total_to_process = min(22, results['total'])  # Process only up to 22 playlists
             processed = 0
             
             # Store total in session to track progress
-            session['sync_total'] = total_playlists
+            session['sync_total'] = total_to_process
             session['sync_processed'] = 0
             session.modified = True
             
-            while results:
+            while results and processed < total_to_process:
                 try:
-                    batch_size = len(results['items'])
+                    # Calculate how many playlists to process in this batch
+                    remaining = total_to_process - processed
+                    batch_size = min(len(results['items']), remaining)
+                    items_to_process = results['items'][:batch_size]
+                    
                     processed += batch_size
-                    print(f"Processing batch of {batch_size} playlists ({processed}/{total_playlists})")
+                    print(f"Processing batch of {batch_size} playlists ({processed}/{total_to_process})")
                     
                     # Update progress in session
                     session['sync_processed'] = processed
                     session.modified = True
                     
                     # Process each playlist in the current batch
-                    for item in results['items']:
+                    for item in items_to_process:
                         try:
                             print(f"Processing playlist: {item['name']}")
                             
@@ -448,6 +452,9 @@ def sync_library():
                             optimized_playlist = optimize_playlist_data(full_playlist, playlist_tracks, track_playlist_map)
                             playlists.append(optimized_playlist)
                             
+                            # Add a small delay between playlists to avoid rate limits
+                            time.sleep(0.5)
+                            
                         except Exception as e:
                             print(f"Error processing playlist {item['name']}: {str(e)}")
                             continue  # Try to process remaining playlists
@@ -465,8 +472,11 @@ def sync_library():
                     except Exception as e:
                         print(f"Warning: Could not save progress: {str(e)}")
                     
-                    # Get next batch of playlists with retry logic
-                    if results['next']:
+                    # Add a small delay between batches
+                    time.sleep(1)
+                    
+                    # Get next batch if we haven't reached our target
+                    if processed < total_to_process and results['next']:
                         retries = 3
                         while retries > 0:
                             try:
@@ -483,8 +493,8 @@ def sync_library():
                         
                 except Exception as e:
                     print(f"Error processing batch: {str(e)}")
-                    # Try to continue with next batch
-                    if results['next']:
+                    # Try to continue with next batch if we haven't reached our target
+                    if processed < total_to_process and results['next']:
                         results = sp.next(results)
                     else:
                         break
