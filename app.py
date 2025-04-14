@@ -202,6 +202,7 @@ def optimize_playlist_data(playlist, tracks, track_playlist_map):
         'name': playlist['name'],
         'description': playlist.get('description', ''),
         'images': playlist.get('images', []),
+        'folder': playlist.get('folder'),  # This comes from the native Spotify folder API
         'owner': {
             'display_name': playlist['owner']['display_name'],
             'external_urls': playlist['owner']['external_urls'],
@@ -375,9 +376,10 @@ def sync_library():
             for folder_id, content in folder_contents.items():
                 for item in content['items']:
                     if item['type'] == 'playlist':
-                        playlist_folder_map[item['uri'].split(':')[-1]] = {
-                            'folder_id': folder_id,
-                            'folder_name': content['name']
+                        playlist_id = item['uri'].split(':')[-1]
+                        playlist_folder_map[playlist_id] = {
+                            'id': folder_id,
+                            'name': content['name']
                         }
             
             # Process playlists
@@ -399,7 +401,7 @@ def sync_library():
                                 track_playlist_map[track['id']] = []
                             track_playlist_map[track['id']].append({
                                 'id': item['id'],
-                                'name': item['name']
+                                'name': item['name']  # Use the original name for references
                             })
                     
                     if not tracks_results['next']:
@@ -409,11 +411,9 @@ def sync_library():
                 print(f"Found {len(playlist_tracks)} tracks in playlist {item['name']}")
                 
                 # Add folder information to the playlist
-                folder_info = playlist_folder_map.get(item['id'], {})
-                full_playlist['folder'] = {
-                    'id': folder_info.get('folder_id'),
-                    'name': folder_info.get('folder_name')
-                } if folder_info else None
+                folder_info = playlist_folder_map.get(item['id'])
+                if folder_info:
+                    full_playlist['folder'] = folder_info
                 
                 # Optimize playlist data
                 optimized_playlist = optimize_playlist_data(full_playlist, playlist_tracks, track_playlist_map)
