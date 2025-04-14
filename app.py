@@ -357,18 +357,24 @@ def sync_library():
             playlists = []
             track_playlist_map = {}
             
-            # Get playlists with pagination (20 per request)
+            # Get first 20 playlists
             results = sp.current_user_playlists(limit=20)
-            total_playlists = results['total']
+            total_to_process = min(22, results['total'])  # Process only up to 22 playlists
             processed = 0
             
-            while results:
-                batch_size = len(results['items'])
+            while results and processed < total_to_process:
+                # Calculate how many playlists to process in this batch
+                remaining = total_to_process - processed
+                batch_size = min(len(results['items']), remaining)
+                
+                # Only process up to our target number
+                items_to_process = results['items'][:batch_size]
                 processed += batch_size
-                print(f"Processing batch of {batch_size} playlists ({processed}/{total_playlists})")
+                
+                print(f"Processing batch of {batch_size} playlists ({processed}/{total_to_process})")
                 
                 # Process each playlist in the current batch
-                for item in results['items']:
+                for item in items_to_process:
                     print(f"Processing playlist: {item['name']}")
                     full_playlist = sp.playlist(item['id'])
                     
@@ -403,19 +409,20 @@ def sync_library():
                 try:
                     user_id = session.get('user_id')
                     if user_id:
-                        data = {
+                        batch_data = {
                             'playlists': playlists,
                             'last_sync': int(time.time())
                         }
-                        save_user_data(user_id, data)
+                        save_user_data(user_id, batch_data)
                         print(f"Progress saved: {len(playlists)} playlists")
                 except Exception as e:
                     print(f"Warning: Could not save progress: {str(e)}")
                 
-                # Get next batch of playlists
-                if not results['next']:
+                # Get next batch if we haven't reached our target
+                if processed < total_to_process and results['next']:
+                    results = sp.next(results)
+                else:
                     break
-                results = sp.next(results)
             
             print(f"Total playlists processed: {len(playlists)}")
             
