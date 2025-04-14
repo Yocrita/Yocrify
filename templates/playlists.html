@@ -498,52 +498,65 @@ function updateSyncButtonState() {
 
 async function syncData() {
     showLoading(true);
-    try {
-        console.log('Starting sync...');
-        const response = await fetch('/sync_library');
-        console.log('Got response:', response.status);
-        
-        let text;
-        try {
-            text = await response.text();
-            console.log('Response text:', text);
-        } catch (e) {
-            console.error('Failed to read response:', e);
-            throw new Error('Failed to read server response');
-        }
-        
-        let data;
-        try {
-            data = JSON.parse(text);
-            console.log('Parsed data:', data);
-        } catch (e) {
-            console.error('Failed to parse JSON:', text);
-            throw new Error('Server returned invalid JSON');
-        }
-        
-        if (!response.ok) {
-            if (response.status === 401 && data && data.redirect) {
-                console.log('Redirecting to login...');
-                window.location.href = data.redirect;
-                return;
-            }
-            throw new Error(data?.error || `HTTP error! status: ${response.status}`);
-        }
-        
-        if (data && data.success) {
-            console.log('Sync successful');
-            showToast('Library synced successfully!');
-            window.location.reload(); // Reload to show new playlists
-        } else {
-            console.error('Sync failed:', data);
-            throw new Error(data?.error || 'Unknown error occurred');
-        }
-    } catch (error) {
-        console.error('Sync error:', error);
-        showToast('Failed to sync library', true);
-    } finally {
-        showLoading(false);
+    const syncButton = document.getElementById('syncButton');
+    if (syncButton) {
+        syncButton.disabled = true;
     }
+
+    fetch('/sync_library')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const reader = response.body.getReader();
+            let decoder = new TextDecoder();
+
+            function readStream() {
+                return reader.read().then(({value, done}) => {
+                    if (done) {
+                        return;
+                    }
+                    const chunk = decoder.decode(value, {stream: true});
+                    try {
+                        const data = JSON.parse(chunk);
+                        if (data.progress) {
+                            const progressEl = document.getElementById('syncProgress');
+                            if (progressEl) {
+                                progressEl.textContent = `Step ${data.progress.current}/${data.progress.total}`;
+                            }
+                        }
+                    } catch (e) {
+                        console.log('Progress chunk:', chunk);
+                    }
+                    return readStream();
+                });
+            }
+
+            return readStream().then(() => response.json());
+        })
+        .then(data => {
+            showLoading(false);
+            if (syncButton) {
+                syncButton.disabled = false;
+            }
+            if (data.success) {
+                window.initialData.playlists = data.playlists;
+                window.initialData.lastSync = data.last_sync;
+                renderPlaylists(data.playlists);
+                showToast('Library synchronized successfully!');
+                updateSyncButtonState();
+            } else {
+                showToast(data.error || 'Failed to sync library', true);
+            }
+        })
+        .catch(error => {
+            showLoading(false);
+            if (syncButton) {
+                syncButton.disabled = false;
+            }
+            console.error('Error:', error);
+            showToast('Failed to sync library. Please try again.', true);
+        });
 }
 
 function filterTracks(searchTerm) {
@@ -1311,7 +1324,8 @@ function initializeTooltips() {
             <div class="spinner-border text-success mb-3" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
-            <div>Synchronizing library...</div>
+            <div class="mb-2">Synchronizing library...</div>
+            <div id="syncProgress" class="text-success" style="font-size: 14px;">Step 0/0</div>
         </div>
     </div>
 </div>
