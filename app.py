@@ -545,14 +545,19 @@ def sync_library():
                     'last_sync': data['last_sync']
                 })
             
-            return Response(
+            response = Response(
                 generate(),
                 mimetype='text/event-stream',
                 headers={
-                    'Cache-Control': 'no-cache',
-                    'Connection': 'keep-alive'
+                    'Cache-Control': 'no-cache, no-transform',
+                    'Connection': 'keep-alive',
+                    'X-Accel-Buffering': 'no',
+                    'Content-Type': 'text/event-stream; charset=utf-8',
+                    'Access-Control-Allow-Origin': '*'
                 }
             )
+            response.timeout = None  # Disable timeout
+            return response
             
         except Exception as e:
             print(f"Error in playlist sync: {str(e)}")
