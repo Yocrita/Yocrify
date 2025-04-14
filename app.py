@@ -157,52 +157,45 @@ def optimize_playlist_data(playlist, tracks, track_playlist_map):
     # Calculate total duration
     total_duration_ms = sum(track['duration_ms'] for track in tracks)
     
-    # Extract unique artists and years
-    artists = set()
+    # Get unique artists and years
+    unique_artists = set()
     years = set()
-    
     for track in tracks:
-        # Add artists
         for artist in track['artists']:
-            artists.add(artist['name'])
-            
-        # Add release year
-        if 'album' in track and 'release_date' in track['album']:
-            years.add(track['album']['release_date'][:4])
-    
-    # Sort artists and years
-    artists_list = sorted(list(artists))
-    years_list = sorted(list(years))
+            unique_artists.add(artist['name'])
+        if 'album' in track and track['album'].get('release_date'):
+            try:
+                year = int(track['album']['release_date'][:4])
+                years.add(year)
+            except (ValueError, TypeError):
+                pass
     
     # Add other playlists information to tracks
-    tracks_with_occurrences = []
     for track in tracks:
-        # Get other playlists containing this track
-        other_playlists = track_playlist_map.get(track['id'], [])
-        # Filter out current playlist
-        other_playlists = [p for p in other_playlists if p['id'] != playlist['id']]
-        
-        track_with_occurrences = {
-            'id': track['id'],
-            'name': track['name'],
-            'duration_ms': track['duration_ms'],
-            'artists': [{'name': artist['name'], 'id': artist['id']} for artist in track['artists']],
-            'album': {
-                'name': track['album']['name'],
-                'release_date': track['album']['release_date'],
-                'images': track['album']['images']
-            },
-            'other_playlists': other_playlists
-        }
-        tracks_with_occurrences.append(track_with_occurrences)
+        other_playlists = []
+        if track['id'] in track_playlist_map:
+            other_playlists = [p for p in track_playlist_map[track['id']] 
+                             if p['id'] != playlist['id']]
+        track['other_playlists'] = other_playlists
     
-    # Create optimized playlist data
+    # Parse folder path from playlist name
+    folder = None
+    name = playlist['name']
+    if '_' in name:
+        parts = name.split('_')
+        if len(parts) > 1:
+            folder = {
+                'name': parts[0].strip(),
+                'path': name[:name.rindex('_')].strip()
+            }
+            name = parts[-1].strip()
+    
     return {
         'id': playlist['id'],
-        'name': playlist['name'],
+        'name': name,
         'description': playlist.get('description', ''),
         'images': playlist.get('images', []),
-        'folder': playlist.get('folder'),  # This comes from the native Spotify folder API
+        'folder': folder,
         'owner': {
             'display_name': playlist['owner']['display_name'],
             'external_urls': playlist['owner']['external_urls'],
@@ -213,11 +206,9 @@ def optimize_playlist_data(playlist, tracks, track_playlist_map):
         },
         'tracks_total': len(tracks),
         'duration_ms': total_duration_ms,
-        'duration_formatted': format_duration(total_duration_ms),
-        'artists_total': len(artists),
-        'artists': artists_list,
-        'years_range': [years_list[0], years_list[-1]] if years_list else [],
-        'tracks': tracks_with_occurrences
+        'unique_artists': len(unique_artists),
+        'years': sorted(list(years)) if years else [],
+        'tracks': tracks
     }
 
 def format_duration(ms):
