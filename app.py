@@ -340,45 +340,44 @@ def sync_library():
             )
             
         try:
-            # Get all user's playlists
-            results = sp.current_user_playlists(limit=50)
+            # Get only 2 playlists for testing
+            results = sp.current_user_playlists(limit=2)
             playlists = []
             track_playlist_map = {}  # Map track IDs to playlists
             
-            while results:
-                for item in results['items']:
-                    # Get full playlist data including tracks
-                    full_playlist = sp.playlist(item['id'])
-                    
-                    # Get all tracks for the playlist
-                    playlist_tracks = []
-                    tracks_results = sp.playlist_tracks(item['id'])
-                    
-                    while tracks_results:
-                        for track_item in tracks_results['items']:
-                            if track_item['track']:  # Ensure track exists
-                                track = track_item['track']
-                                playlist_tracks.append(track)
-                                
-                                # Update track_playlist_map
-                                if track['id'] not in track_playlist_map:
-                                    track_playlist_map[track['id']] = []
-                                track_playlist_map[track['id']].append({
-                                    'id': item['id'],
-                                    'name': item['name']
-                                })
-                        
-                        if not tracks_results['next']:
-                            break
-                        tracks_results = sp.next(tracks_results)
-                    
-                    # Optimize playlist data
-                    optimized_playlist = optimize_playlist_data(full_playlist, playlist_tracks, track_playlist_map)
-                    playlists.append(optimized_playlist)
+            # Process only the first page (max 2 playlists)
+            for item in results['items']:
+                print(f"Processing playlist: {item['name']}")  # Debug log
+                # Get full playlist data including tracks
+                full_playlist = sp.playlist(item['id'])
                 
-                if not results['next']:
-                    break
-                results = sp.next(results)
+                # Get all tracks for the playlist
+                playlist_tracks = []
+                tracks_results = sp.playlist_tracks(item['id'])
+                
+                while tracks_results:
+                    for track_item in tracks_results['items']:
+                        if track_item['track']:  # Ensure track exists
+                            track = track_item['track']
+                            playlist_tracks.append(track)
+                            
+                            # Update track_playlist_map
+                            if track['id'] not in track_playlist_map:
+                                track_playlist_map[track['id']] = []
+                            track_playlist_map[track['id']].append({
+                                'id': item['id'],
+                                'name': item['name']
+                            })
+                    
+                    if not tracks_results['next']:
+                        break
+                    tracks_results = sp.next(tracks_results)
+                
+                print(f"Found {len(playlist_tracks)} tracks in playlist {item['name']}")  # Debug log
+                
+                # Optimize playlist data
+                optimized_playlist = optimize_playlist_data(full_playlist, playlist_tracks, track_playlist_map)
+                playlists.append(optimized_playlist)
             
             # Save the data
             data = {
