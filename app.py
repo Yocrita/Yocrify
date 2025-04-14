@@ -154,53 +154,69 @@ def load_user_data(user_id):
 
 def optimize_playlist_data(playlist, tracks, track_playlist_map):
     """Pre-calculate and cache useful playlist information"""
+    # Calculate total duration
     total_duration_ms = sum(track['duration_ms'] for track in tracks)
-    genres = set()
-    artists = set()
-    release_years = set()
     
-    # Add track occurrence information
+    # Extract unique artists and years
+    artists = set()
+    years = set()
+    
+    for track in tracks:
+        # Add artists
+        for artist in track['artists']:
+            artists.add(artist['name'])
+            
+        # Add release year
+        if 'album' in track and 'release_date' in track['album']:
+            years.add(track['album']['release_date'][:4])
+    
+    # Sort artists and years
+    artists_list = sorted(list(artists))
+    years_list = sorted(list(years))
+    
+    # Add other playlists information to tracks
     tracks_with_occurrences = []
     for track in tracks:
         # Get other playlists containing this track
         other_playlists = track_playlist_map.get(track['id'], [])
-        # Filter out current playlist and sort by name
+        # Filter out current playlist
         other_playlists = [p for p in other_playlists if p['id'] != playlist['id']]
-        other_playlists.sort(key=lambda x: x['name'].lower())
         
-        track_with_occurrences = track.copy()
-        track_with_occurrences['other_playlists'] = other_playlists
+        track_with_occurrences = {
+            'id': track['id'],
+            'name': track['name'],
+            'duration_ms': track['duration_ms'],
+            'artists': [{'name': artist['name'], 'id': artist['id']} for artist in track['artists']],
+            'album': {
+                'name': track['album']['name'],
+                'release_date': track['album']['release_date'],
+                'images': track['album']['images']
+            },
+            'other_playlists': other_playlists
+        }
         tracks_with_occurrences.append(track_with_occurrences)
-        
-        # Extract artist info
-        for artist in track.get('artists', []):
-            artists.add(artist['name'])
-            
-        # Extract release year
-        if 'album' in track and 'release_date' in track['album']:
-            try:
-                year = track['album']['release_date'].split('-')[0]
-                release_years.add(year)
-            except (IndexError, AttributeError):
-                pass
     
-    # Sort tracks by name for consistency
-    tracks_with_occurrences.sort(key=lambda x: x['name'].lower())
-    
+    # Create optimized playlist data
     return {
         'id': playlist['id'],
         'name': playlist['name'],
         'description': playlist.get('description', ''),
         'images': playlist.get('images', []),
-        'owner': playlist['owner'],
+        'owner': {
+            'display_name': playlist['owner']['display_name'],
+            'external_urls': playlist['owner']['external_urls'],
+            'href': playlist['owner']['href'],
+            'id': playlist['owner']['id'],
+            'type': playlist['owner']['type'],
+            'uri': playlist['owner']['uri']
+        },
         'tracks_total': len(tracks),
         'duration_ms': total_duration_ms,
         'duration_formatted': format_duration(total_duration_ms),
         'artists_total': len(artists),
-        'artists': sorted(list(artists)),
-        'years_range': [min(release_years), max(release_years)] if release_years else [],
-        'tracks': tracks_with_occurrences,  # Store all tracks with sorted occurrences
-        'modified_at': int(time.time())
+        'artists': artists_list,
+        'years_range': [years_list[0], years_list[-1]] if years_list else [],
+        'tracks': tracks_with_occurrences
     }
 
 def format_duration(ms):
@@ -310,152 +326,77 @@ def logout():
 
 @app.route('/sync_library')
 def sync_library():
-    print("\n=== Starting sync_library ===")
     try:
-        # First check authentication
         sp = get_spotify()
         if not sp:
-            print("User not authenticated")
             response = {
                 'success': False,
-                'error': 'Not authenticated. Please log in again.',
-                'redirect': url_for('login')
+                'error': 'Not authenticated.'
             }
-            print("Returning response:", response)
             return app.response_class(
                 response=json.dumps(response),
                 status=401,
                 mimetype='application/json'
             )
-
-        # Get user info first
+            
         try:
-            user_info = sp.current_user()
-            if not user_info or 'id' not in user_info:
-                print("Could not get user info")
-                response = {
-                    'success': False,
-                    'error': 'Could not get user info. Please try logging in again.',
-                    'redirect': url_for('login')
-                }
-                print("Returning response:", response)
-                return app.response_class(
-                    response=json.dumps(response),
-                    status=401,
-                    mimetype='application/json'
-                )
-                
-            user_id = user_info['id']
-            session['user_id'] = user_id
-            print(f"Got user ID: {user_id}")
+            # Get all user's playlists
+            results = sp.current_user_playlists(limit=50)
+            playlists = []
+            track_playlist_map = {}  # Map track IDs to playlists
             
-        except Exception as e:
-            print(f"Error getting user info: {str(e)}")
-            response = {
-                'success': False,
-                'error': 'Failed to get user info. Please try logging in again.',
-                'redirect': url_for('login')
-            }
-            print("Returning response:", response)
-            return app.response_class(
-                response=json.dumps(response),
-                status=401,
-                mimetype='application/json'
-            )
-
-        # Check data directory
-        if not os.path.exists(DATA_DIR):
-            print("Data directory does not exist, creating...")
-            try:
-                os.makedirs(DATA_DIR, exist_ok=True)
-            except Exception as e:
-                print(f"Failed to create data directory: {str(e)}")
-                response = {
-                    'success': False,
-                    'error': 'Server storage is not accessible. Please try again later.'
-                }
-                print("Returning response:", response)
-                return app.response_class(
-                    response=json.dumps(response),
-                    status=500,
-                    mimetype='application/json'
-                )
-            
-        # Test write permissions
-        test_file = os.path.join(DATA_DIR, 'test.txt')
-        try:
-            with open(test_file, 'w') as f:
-                f.write('test')
-            os.remove(test_file)
-            print("Data directory is writable")
-        except Exception as e:
-            print(f"Data directory is not writable: {str(e)}")
-            response = {
-                'success': False,
-                'error': 'Server storage is not accessible. Please try again later.'
-            }
-            print("Returning response:", response)
-            return app.response_class(
-                response=json.dumps(response),
-                status=500,
-                mimetype='application/json'
-            )
-
-        # Initialize empty lists for all data
-        playlists = []
-        all_tracks = {}
-        
-        try:
-            # Get user's playlists with retry
-            print("Fetching user playlists...")
-            results = fetch_with_retry(sp.current_user_playlists)
-            if not results:
-                print("Failed to fetch playlists")
-                response = {
-                    'success': False,
-                    'error': 'Failed to fetch playlists. Please try again.'
-                }
-                print("Returning response:", response)
-                return app.response_class(
-                    response=json.dumps(response),
-                    status=500,
-                    mimetype='application/json'
-                )
-            
-            print(f"Found {len(results['items'])} playlists")
-            
-            # Process playlists
             while results:
                 for item in results['items']:
-                    try:
-                        print(f"Processing playlist: {item['name']}")
-                        playlist_data = {
-                            'id': item['id'],
-                            'name': item['name'],
-                            'description': item.get('description', ''),
-                            'image': item['images'][0]['url'] if item.get('images') else None,
-                            'tracks': []
-                        }
-                        playlists.append(playlist_data)
-                    except Exception as e:
-                        print(f"Error processing playlist {item.get('id', 'unknown')}: {str(e)}")
-                        continue
-                
-                if not results.get('next'):
-                    break
+                    # Get full playlist data including tracks
+                    full_playlist = sp.playlist(item['id'])
                     
-                print("Fetching next page of playlists...")
-                results = fetch_with_retry(sp.next, results)
-                if not results:
+                    # Get all tracks for the playlist
+                    playlist_tracks = []
+                    tracks_results = sp.playlist_tracks(item['id'])
+                    
+                    while tracks_results:
+                        for track_item in tracks_results['items']:
+                            if track_item['track']:  # Ensure track exists
+                                track = track_item['track']
+                                playlist_tracks.append(track)
+                                
+                                # Update track_playlist_map
+                                if track['id'] not in track_playlist_map:
+                                    track_playlist_map[track['id']] = []
+                                track_playlist_map[track['id']].append({
+                                    'id': item['id'],
+                                    'name': item['name']
+                                })
+                        
+                        if not tracks_results['next']:
+                            break
+                        tracks_results = sp.next(tracks_results)
+                    
+                    # Optimize playlist data
+                    optimized_playlist = optimize_playlist_data(full_playlist, playlist_tracks, track_playlist_map)
+                    playlists.append(optimized_playlist)
+                
+                if not results['next']:
                     break
+                results = sp.next(results)
             
-            # Save data
-            print("Saving data...")
+            # Save the data
             data = {
                 'playlists': playlists,
-                'tracks': all_tracks,
                 'last_sync': int(time.time())
             }
+            
+            user_id = session.get('user_id')
+            if not user_id:
+                response = {
+                    'success': False,
+                    'error': 'User ID not found in session'
+                }
+                return app.response_class(
+                    response=json.dumps(response),
+                    status=400,
+                    mimetype='application/json'
+                )
             
             try:
                 save_user_data(user_id, data)
@@ -466,20 +407,17 @@ def sync_library():
                     'success': False,
                     'error': 'Failed to save data. Please try again.'
                 }
-                print("Returning response:", response)
                 return app.response_class(
                     response=json.dumps(response),
                     status=500,
                     mimetype='application/json'
                 )
             
-            print("Sync completed successfully")
             response = {
                 'success': True,
                 'playlists': playlists,
                 'last_sync': data['last_sync']
             }
-            print("Returning response:", response)
             return app.response_class(
                 response=json.dumps(response),
                 status=200,
@@ -492,7 +430,6 @@ def sync_library():
                 'success': False,
                 'error': 'Failed to sync playlists. Please try again.'
             }
-            print("Returning response:", response)
             return app.response_class(
                 response=json.dumps(response),
                 status=500,
@@ -505,7 +442,6 @@ def sync_library():
             'success': False,
             'error': 'An unexpected error occurred. Please try again.'
         }
-        print("Returning response:", response)
         return app.response_class(
             response=json.dumps(response),
             status=500,
