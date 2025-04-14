@@ -503,11 +503,11 @@ function syncData() {
         syncButton.disabled = true;
     }
 
-    // Create EventSource for Server-Sent Events
-    const eventSource = new EventSource('/sync_library', { withCredentials: true });
+    let eventSource = null;
     let finalData = null;
     let retryCount = 0;
     const maxRetries = 3;
+    let isCleaned = false;
 
     // Update progress display
     function updateProgress(current, total) {
@@ -518,62 +518,96 @@ function syncData() {
     }
 
     // Clean up function
-    function cleanup() {
+    function cleanup(force = false) {
+        if (isCleaned && !force) return;
+        isCleaned = true;
+        
         if (eventSource) {
             eventSource.close();
+            eventSource = null;
         }
         showLoading(false);
         if (syncButton) {
             syncButton.disabled = false;
         }
+        window.removeEventListener('beforeunload', cleanup);
     }
 
-    eventSource.onmessage = function(event) {
-        try {
-            const data = JSON.parse(event.data);
-            console.log('SSE message:', data);
-            
-            // Reset retry count on successful message
-            retryCount = 0;
-            
-            // Handle progress updates
-            if (data.progress) {
-                updateProgress(data.progress.current, data.progress.total);
-            }
-            // Handle final response
-            else if (data.success !== undefined) {
-                finalData = data;
-                cleanup();
-                
-                if (finalData.success) {
-                    window.initialData.playlists = finalData.playlists;
-                    window.initialData.lastSync = finalData.last_sync;
-                    renderPlaylists(finalData.playlists);
-                    showToast('Library synchronized successfully!');
-                    updateSyncButtonState();
-                } else {
-                    showToast(finalData.error || 'Failed to sync library', true);
-                }
-            }
-        } catch (e) {
-            console.error('Error parsing event data:', e);
-            showToast('Error processing server response', true);
-        }
-    };
-
-    eventSource.onerror = function(error) {
-        console.error('EventSource error:', error);
-        retryCount++;
-        
-        if (retryCount > maxRetries) {
-            cleanup();
-            showToast('Failed to sync library after multiple attempts. Please try again.', true);
+    function handleSuccess(data) {
+        if (data.success) {
+            window.initialData.playlists = data.playlists;
+            window.initialData.lastSync = data.last_sync;
+            renderPlaylists(data.playlists);
+            showToast('Library synchronized successfully!');
+            updateSyncButtonState();
         } else {
-            console.log(`Retry attempt ${retryCount}/${maxRetries}`);
-            // The browser will automatically try to reconnect
-            updateProgress('Reconnecting...', '');
+            showToast(data.error || 'Failed to sync library', true);
         }
-    };
+    }
+
+    function initEventSource() {
+        if (isCleaned) return;
+        
+        try {
+            eventSource = new EventSource('/sync_library', { withCredentials: true });
+            
+            eventSource.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('SSE message:', data);
+                    
+                    // Reset retry count on successful message
+                    retryCount = 0;
+                    
+                    // Handle progress updates
+                    if (data.progress) {
+                        updateProgress(data.progress.current, data.progress.total);
+                    }
+                    // Handle final response
+                    else if (data.success !== undefined) {
+                        finalData = data;
+                        cleanup();
+                        handleSuccess(finalData);
+                    }
+                } catch (e) {
+                    console.error('Error parsing event data:', e);
+                    showToast('Error processing server response', true);
+                    cleanup();
+                }
+            };
+
+            eventSource.onerror = function(error) {
+                console.error('EventSource error:', error);
+                
+                if (eventSource.readyState === EventSource.CLOSED) {
+                    retryCount++;
+                    console.log(`Connection closed. Retry attempt ${retryCount}/${maxRetries}`);
+                    
+                    if (retryCount > maxRetries) {
+                        cleanup();
+                        showToast('Failed to sync library after multiple attempts. Please try again.', true);
+                    } else {
+                        // Wait before retrying
+                        updateProgress('Reconnecting...', '');
+                        setTimeout(() => {
+                            if (!isCleaned) {
+                                eventSource.close();
+                                initEventSource();
+                            }
+                        }, 2000);  // Wait 2 seconds before retry
+                    }
+                }
+            };
+
+        } catch (e) {
+            console.error('Error creating EventSource:', e);
+            cleanup();
+            showToast('Failed to connect to server. Please try again.', true);
+        }
+    }
+
+    // Start the connection
+    initEventSource();
 
     // Handle page unload
     window.addEventListener('beforeunload', cleanup);

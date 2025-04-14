@@ -243,6 +243,16 @@ def get_git_version():
 def inject_git_version():
     return dict(git_version=get_git_version())
 
+@app.after_request
+def after_request(response):
+    """Add headers to both force latest IE rendering engine or Chrome Frame,
+    and also to cache the rendered page for 10 minutes."""
+    response.headers["X-UA-Compatible"] = "IE=Edge,chrome=1"
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
 @app.route('/')
 def index():
     sp = get_spotify()
@@ -462,6 +472,15 @@ def sync_library():
                                 # Add a small delay between playlists to avoid rate limits
                                 time.sleep(0.5)
                                 
+                                # Send a keepalive progress update
+                                yield format_sse({
+                                    'progress': {
+                                        'current': current_batch,
+                                        'total': total_batches,
+                                        'playlist': item['name']
+                                    }
+                                })
+                                
                             except Exception as e:
                                 print(f"Error processing playlist {item['name']}: {str(e)}")
                                 continue  # Try to process remaining playlists
@@ -549,11 +568,12 @@ def sync_library():
                 generate(),
                 mimetype='text/event-stream',
                 headers={
-                    'Cache-Control': 'no-cache, no-transform',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate, no-transform',
                     'Connection': 'keep-alive',
                     'X-Accel-Buffering': 'no',
                     'Content-Type': 'text/event-stream; charset=utf-8',
-                    'Access-Control-Allow-Origin': '*'
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Credentials': 'true'
                 }
             )
             response.timeout = None  # Disable timeout
