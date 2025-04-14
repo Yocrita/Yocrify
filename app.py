@@ -465,13 +465,11 @@ def get_playlist(playlist_id):
         if not playlist:
             return jsonify({'success': False, 'error': 'playlist_not_found'})
             
-        # Get the full tracks for this playlist
-        tracks = data['tracks'].get(playlist_id, [])
-            
+        # The tracks are now included in the playlist object itself
         return jsonify({
             'success': True,
             'playlist': playlist,
-            'tracks': tracks
+            'tracks': playlist['tracks']  # Get tracks directly from the playlist object
         })
         
     except Exception as e:
