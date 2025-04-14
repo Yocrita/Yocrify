@@ -64,43 +64,20 @@ def create_spotify_oauth():
     )
 
 def get_spotify():
-    """Get an authenticated Spotify client or None if not authenticated"""
-    try:
-        if 'token_info' not in session:
-            print("No token info in session")
-            return None
-            
-        # Create Spotify client
-        token_info = session['token_info']
-        
-        # Check if token is expired
-        now = int(time.time())
-        is_expired = token_info['expires_at'] - now < 60
-        
-        if is_expired:
-            print("Token is expired, trying to refresh...")
-            try:
-                # Create a Spotify OAuth instance
-                sp_oauth = SpotifyOAuth(
-                    client_id=SPOTIFY_CLIENT_ID,
-                    client_secret=SPOTIFY_CLIENT_SECRET,
-                    redirect_uri=SPOTIFY_REDIRECT_URI,
-                    scope='playlist-read-private playlist-read-collaborative user-library-read'
-                )
-                
-                # Try to refresh the token
-                token_info = sp_oauth.refresh_access_token(token_info['refresh_token'])
-                session['token_info'] = token_info
-                print("Token refreshed successfully")
-            except Exception as e:
-                print(f"Error refreshing token: {str(e)}")
-                return None
-                
-        return spotipy.Spotify(auth=token_info['access_token'])
-        
-    except Exception as e:
-        print(f"Error in get_spotify: {str(e)}")
+    """Get an authenticated Spotify client with proper timeout settings"""
+    if not session.get('token_info'):
         return None
+
+    # Create client with longer timeout for large operations
+    client_credentials = spotipy.oauth2.SpotifyOAuth(
+        client_id=SPOTIFY_CLIENT_ID,
+        client_secret=SPOTIFY_CLIENT_SECRET,
+        redirect_uri=SPOTIFY_REDIRECT_URI,
+        scope=SCOPE,
+        requests_timeout=300,  # 5 minutes timeout
+        retries=3  # Retry failed requests
+    )
+    return spotipy.Spotify(auth=session['token_info']['access_token'], oauth_manager=client_credentials)
 
 def fetch_with_retry(func, *args, max_retries=3, **kwargs):
     for attempt in range(max_retries):
@@ -357,74 +334,135 @@ def sync_library():
             playlists = []
             track_playlist_map = {}
             
-            # Get first 20 playlists
+            # Get first batch of playlists
             results = sp.current_user_playlists(limit=20)
-            total_to_process = min(22, results['total'])  # Process only up to 22 playlists
+            total_playlists = results['total']
             processed = 0
             
-            while results and processed < total_to_process:
-                # Calculate how many playlists to process in this batch
-                remaining = total_to_process - processed
-                batch_size = min(len(results['items']), remaining)
-                
-                # Only process up to our target number
-                items_to_process = results['items'][:batch_size]
-                processed += batch_size
-                
-                print(f"Processing batch of {batch_size} playlists ({processed}/{total_to_process})")
-                
-                # Process each playlist in the current batch
-                for item in items_to_process:
-                    print(f"Processing playlist: {item['name']}")
-                    full_playlist = sp.playlist(item['id'])
-                    
-                    # Get all tracks for this playlist
-                    playlist_tracks = []
-                    tracks_results = sp.playlist_tracks(item['id'])
-                    
-                    while tracks_results:
-                        for track_item in tracks_results['items']:
-                            if track_item['track']:
-                                track = track_item['track']
-                                playlist_tracks.append(track)
-                                
-                                if track['id'] not in track_playlist_map:
-                                    track_playlist_map[track['id']] = []
-                                track_playlist_map[track['id']].append({
-                                    'id': item['id'],
-                                    'name': item['name']
-                                })
-                        
-                        if not tracks_results['next']:
-                            break
-                        tracks_results = sp.next(tracks_results)
-                    
-                    print(f"Found {len(playlist_tracks)} tracks in playlist {item['name']}")
-                    
-                    # Optimize playlist data
-                    optimized_playlist = optimize_playlist_data(full_playlist, playlist_tracks, track_playlist_map)
-                    playlists.append(optimized_playlist)
-                
-                # Save progress after each batch
+            # Store total in session to track progress
+            session['sync_total'] = total_playlists
+            session['sync_processed'] = 0
+            session.modified = True
+            
+            while results:
                 try:
-                    user_id = session.get('user_id')
-                    if user_id:
-                        batch_data = {
-                            'playlists': playlists,
-                            'last_sync': int(time.time())
-                        }
-                        save_user_data(user_id, batch_data)
-                        print(f"Progress saved: {len(playlists)} playlists")
+                    batch_size = len(results['items'])
+                    processed += batch_size
+                    print(f"Processing batch of {batch_size} playlists ({processed}/{total_playlists})")
+                    
+                    # Update progress in session
+                    session['sync_processed'] = processed
+                    session.modified = True
+                    
+                    # Process each playlist in the current batch
+                    for item in results['items']:
+                        try:
+                            print(f"Processing playlist: {item['name']}")
+                            
+                            # Get playlist with retry logic
+                            retries = 3
+                            while retries > 0:
+                                try:
+                                    full_playlist = sp.playlist(item['id'])
+                                    break
+                                except Exception as e:
+                                    retries -= 1
+                                    if retries == 0:
+                                        raise e
+                                    print(f"Retrying playlist fetch for {item['name']}")
+                                    time.sleep(1)  # Wait before retry
+                            
+                            # Get all tracks with retry logic
+                            playlist_tracks = []
+                            tracks_results = sp.playlist_tracks(item['id'])
+                            
+                            while tracks_results:
+                                try:
+                                    for track_item in tracks_results['items']:
+                                        if track_item['track']:
+                                            track = track_item['track']
+                                            playlist_tracks.append(track)
+                                            
+                                            if track['id'] not in track_playlist_map:
+                                                track_playlist_map[track['id']] = []
+                                            track_playlist_map[track['id']].append({
+                                                'id': item['id'],
+                                                'name': item['name']
+                                            })
+                                    
+                                    if not tracks_results['next']:
+                                        break
+                                        
+                                    # Get next batch of tracks with retry
+                                    retries = 3
+                                    while retries > 0:
+                                        try:
+                                            tracks_results = sp.next(tracks_results)
+                                            break
+                                        except Exception as e:
+                                            retries -= 1
+                                            if retries == 0:
+                                                raise e
+                                            print(f"Retrying tracks fetch for {item['name']}")
+                                            time.sleep(1)  # Wait before retry
+                                            
+                                except Exception as e:
+                                    print(f"Error processing tracks batch in {item['name']}: {str(e)}")
+                                    continue  # Try to process remaining tracks
+                            
+                            print(f"Found {len(playlist_tracks)} tracks in playlist {item['name']}")
+                            
+                            # Optimize playlist data
+                            optimized_playlist = optimize_playlist_data(full_playlist, playlist_tracks, track_playlist_map)
+                            playlists.append(optimized_playlist)
+                            
+                        except Exception as e:
+                            print(f"Error processing playlist {item['name']}: {str(e)}")
+                            continue  # Try to process remaining playlists
+                    
+                    # Save progress after each batch
+                    try:
+                        user_id = session.get('user_id')
+                        if user_id:
+                            batch_data = {
+                                'playlists': playlists,
+                                'last_sync': int(time.time())
+                            }
+                            save_user_data(user_id, batch_data)
+                            print(f"Progress saved: {len(playlists)} playlists")
+                    except Exception as e:
+                        print(f"Warning: Could not save progress: {str(e)}")
+                    
+                    # Get next batch of playlists with retry logic
+                    if results['next']:
+                        retries = 3
+                        while retries > 0:
+                            try:
+                                results = sp.next(results)
+                                break
+                            except Exception as e:
+                                retries -= 1
+                                if retries == 0:
+                                    raise e
+                                print("Retrying next playlists batch fetch")
+                                time.sleep(1)  # Wait before retry
+                    else:
+                        break
+                        
                 except Exception as e:
-                    print(f"Warning: Could not save progress: {str(e)}")
-                
-                # Get next batch if we haven't reached our target
-                if processed < total_to_process and results['next']:
-                    results = sp.next(results)
-                else:
-                    break
+                    print(f"Error processing batch: {str(e)}")
+                    # Try to continue with next batch
+                    if results['next']:
+                        results = sp.next(results)
+                    else:
+                        break
             
             print(f"Total playlists processed: {len(playlists)}")
+            
+            # Clear sync progress from session
+            session.pop('sync_total', None)
+            session.pop('sync_processed', None)
+            session.modified = True
             
             # Final save
             data = {
