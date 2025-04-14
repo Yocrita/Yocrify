@@ -595,7 +595,9 @@ function syncData() {
         if (isCleaned) return;
         
         try {
-            eventSource = new EventSource('/sync_library', { withCredentials: true });
+            // Use current origin for EventSource URL
+            const url = new URL('/sync_library', window.location.origin);
+            eventSource = new EventSource(url.toString(), { withCredentials: true });
             
             eventSource.onmessage = handleMessage;
 

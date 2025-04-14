@@ -251,6 +251,16 @@ def after_request(response):
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
+    
+    # Handle CORS
+    origin = request.headers.get('Origin')
+    if origin:
+        # Allow the specific origin that made the request
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    
     return response
 
 @app.route('/')
@@ -357,8 +367,17 @@ def get_playlist_folder_info(sp):
         print(f"Error getting folder info: {str(e)}")
         return [], {}
 
-@app.route('/sync_library')
+@app.route('/sync_library', methods=['GET', 'OPTIONS'])
 def sync_library():
+    if request.method == 'OPTIONS':
+        # Preflight request. Reply successfully:
+        response = app.response_class(
+            response="",
+            status=200,
+            mimetype='text/plain'
+        )
+        return response
+        
     try:
         sp = get_spotify()
         if not sp:
