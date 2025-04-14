@@ -354,48 +354,72 @@ def sync_library():
             )
             
         try:
-            # Get playlists (limit 50)
             playlists = []
             track_playlist_map = {}
             
-            results = sp.current_user_playlists(limit=50)
-            print(f"Processing {len(results['items'])} playlists")
+            # Get playlists with pagination (20 per request)
+            results = sp.current_user_playlists(limit=20)
+            total_playlists = results['total']
+            processed = 0
             
-            # Process playlists
-            for item in results['items']:
-                print(f"Processing playlist: {item['name']}")
-                full_playlist = sp.playlist(item['id'])
+            while results:
+                batch_size = len(results['items'])
+                processed += batch_size
+                print(f"Processing batch of {batch_size} playlists ({processed}/{total_playlists})")
                 
-                # Get all tracks for this playlist
-                playlist_tracks = []
-                tracks_results = sp.playlist_tracks(item['id'])
-                
-                while tracks_results:
-                    for track_item in tracks_results['items']:
-                        if track_item['track']:
-                            track = track_item['track']
-                            playlist_tracks.append(track)
-                            
-                            if track['id'] not in track_playlist_map:
-                                track_playlist_map[track['id']] = []
-                            track_playlist_map[track['id']].append({
-                                'id': item['id'],
-                                'name': item['name']
-                            })
+                # Process each playlist in the current batch
+                for item in results['items']:
+                    print(f"Processing playlist: {item['name']}")
+                    full_playlist = sp.playlist(item['id'])
                     
-                    if not tracks_results['next']:
-                        break
-                    tracks_results = sp.next(tracks_results)
+                    # Get all tracks for this playlist
+                    playlist_tracks = []
+                    tracks_results = sp.playlist_tracks(item['id'])
+                    
+                    while tracks_results:
+                        for track_item in tracks_results['items']:
+                            if track_item['track']:
+                                track = track_item['track']
+                                playlist_tracks.append(track)
+                                
+                                if track['id'] not in track_playlist_map:
+                                    track_playlist_map[track['id']] = []
+                                track_playlist_map[track['id']].append({
+                                    'id': item['id'],
+                                    'name': item['name']
+                                })
+                        
+                        if not tracks_results['next']:
+                            break
+                        tracks_results = sp.next(tracks_results)
+                    
+                    print(f"Found {len(playlist_tracks)} tracks in playlist {item['name']}")
+                    
+                    # Optimize playlist data
+                    optimized_playlist = optimize_playlist_data(full_playlist, playlist_tracks, track_playlist_map)
+                    playlists.append(optimized_playlist)
                 
-                print(f"Found {len(playlist_tracks)} tracks in playlist {item['name']}")
+                # Save progress after each batch
+                try:
+                    user_id = session.get('user_id')
+                    if user_id:
+                        data = {
+                            'playlists': playlists,
+                            'last_sync': int(time.time())
+                        }
+                        save_user_data(user_id, data)
+                        print(f"Progress saved: {len(playlists)} playlists")
+                except Exception as e:
+                    print(f"Warning: Could not save progress: {str(e)}")
                 
-                # Optimize playlist data
-                optimized_playlist = optimize_playlist_data(full_playlist, playlist_tracks, track_playlist_map)
-                playlists.append(optimized_playlist)
+                # Get next batch of playlists
+                if not results['next']:
+                    break
+                results = sp.next(results)
             
             print(f"Total playlists processed: {len(playlists)}")
             
-            # Save the data
+            # Final save
             data = {
                 'playlists': playlists,
                 'last_sync': int(time.time())
