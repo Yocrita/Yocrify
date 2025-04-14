@@ -65,19 +65,51 @@ def create_spotify_oauth():
 
 def get_spotify():
     """Get an authenticated Spotify client with proper timeout settings"""
-    if not session.get('token_info'):
+    try:
+        if 'token_info' not in session:
+            print("No token info in session")
+            return None
+            
+        # Create Spotify client
+        token_info = session['token_info']
+        
+        # Check if token is expired
+        now = int(time.time())
+        is_expired = token_info['expires_at'] - now < 60
+        
+        if is_expired:
+            print("Token is expired, trying to refresh...")
+            try:
+                # Create a Spotify OAuth instance with timeout settings
+                sp_oauth = SpotifyOAuth(
+                    client_id=SPOTIFY_CLIENT_ID,
+                    client_secret=SPOTIFY_CLIENT_SECRET,
+                    redirect_uri=SPOTIFY_REDIRECT_URI,
+                    scope=SCOPE,
+                    requests_timeout=300,  # 5 minutes timeout
+                    retries=3,  # Retry failed requests
+                    cache_path='.spotify_cache'
+                )
+                
+                # Try to refresh the token
+                token_info = sp_oauth.refresh_access_token(token_info['refresh_token'])
+                session['token_info'] = token_info
+                print("Token refreshed successfully")
+            except Exception as e:
+                print(f"Error refreshing token: {str(e)}")
+                return None
+                
+        # Create client with timeout settings
+        sp = spotipy.Spotify(
+            auth=token_info['access_token'],
+            requests_timeout=300,  # 5 minutes timeout
+            retries=3  # Retry failed requests
+        )
+        return sp
+        
+    except Exception as e:
+        print(f"Error in get_spotify: {str(e)}")
         return None
-
-    # Create client with longer timeout for large operations
-    client_credentials = spotipy.oauth2.SpotifyOAuth(
-        client_id=SPOTIFY_CLIENT_ID,
-        client_secret=SPOTIFY_CLIENT_SECRET,
-        redirect_uri=SPOTIFY_REDIRECT_URI,
-        scope=SCOPE,
-        requests_timeout=300,  # 5 minutes timeout
-        retries=3  # Retry failed requests
-    )
-    return spotipy.Spotify(auth=session['token_info']['access_token'], oauth_manager=client_credentials)
 
 def fetch_with_retry(func, *args, max_retries=3, **kwargs):
     for attempt in range(max_retries):
