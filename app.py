@@ -377,7 +377,6 @@ def sync_library():
             mimetype='text/plain'
         )
         return response
-        
     try:
         sp = get_spotify()
         if not sp:
@@ -390,24 +389,20 @@ def sync_library():
                 status=401,
                 mimetype='application/json'
             )
-            
         try:
             playlists = []
             track_playlist_map = {}
             
-            # Get first batch of playlists
-            results = sp.current_user_playlists(limit=5)  # Smaller batch size
-            total_to_process = min(22, results['total'])  # Process only up to 22 playlists
-            total_batches = (total_to_process + 4) // 5  # Round up division
+            # TEST: Load only 20 playlists, pagination of 20
+            results = sp.current_user_playlists(limit=20)
+            total_to_process = min(20, results['total'])
+            total_batches = 1  # Only one batch since limit=20
             current_batch = 1
             processed = 0
             
             def format_sse(data):
-                """Format data for SSE, ensuring proper JSON serialization"""
                 try:
-                    # Convert data to a simple dict with primitive types
                     if isinstance(data, dict):
-                        # Handle progress updates
                         if 'progress' in data:
                             progress = data['progress']
                             data = {
@@ -418,7 +413,6 @@ def sync_library():
                                     'playlist': str(progress.get('playlist', ''))
                                 }
                             }
-                        # Handle final response
                         elif 'success' in data:
                             data = {
                                 'type': 'complete',
@@ -429,103 +423,47 @@ def sync_library():
                                     'last_sync': int(data.get('last_sync', 0))
                                 }
                             }
-                    
-                    # Ensure JSON serialization works
                     json_str = json.dumps(data, default=str)
                     return f"data: {json_str}\n\n"
                 except Exception as e:
                     print(f"Error formatting SSE data: {str(e)}")
-                    # Return a simple error message that will definitely serialize
                     return f"data: {{\"type\":\"error\",\"message\":\"Internal server error\"}}\n\n"
-
+            
             def generate():
                 nonlocal current_batch, processed, playlists
-                
-                # Send initial progress
                 yield format_sse({
                     'progress': {
-                        'current': 1,
+                        'current': current_batch,
                         'total': total_batches,
                         'playlist': 'Starting...'
                     }
                 })
-                
-                while results and processed < total_to_process:
+                if results and processed < total_to_process:
                     try:
-                        # Calculate how many playlists to process in this batch
-                        remaining = total_to_process - processed
-                        batch_size = min(len(results['items']), remaining)
+                        batch_size = min(len(results['items']), total_to_process)
                         items_to_process = results['items'][:batch_size]
-                        
                         processed += batch_size
-                        print(f"Processing batch {current_batch}/{total_batches} ({processed}/{total_to_process} playlists)")
-                        
-                        # Process each playlist in the current batch
                         for item in items_to_process:
                             try:
-                                print(f"Processing playlist: {item['name']}")
-                                
-                                # Get playlist with retry logic
-                                retries = 3
-                                while retries > 0:
-                                    try:
-                                        full_playlist = sp.playlist(item['id'])
-                                        break
-                                    except Exception as e:
-                                        retries -= 1
-                                        if retries == 0:
-                                            raise e
-                                        print(f"Retrying playlist fetch for {item['name']}")
-                                        time.sleep(1)  # Wait before retry
-                                
-                                # Get all tracks with retry logic
+                                full_playlist = sp.playlist(item['id'])
                                 playlist_tracks = []
                                 tracks_results = sp.playlist_tracks(item['id'])
-                                
                                 while tracks_results:
-                                    try:
-                                        for track_item in tracks_results['items']:
-                                            if track_item['track']:
-                                                track = track_item['track']
-                                                playlist_tracks.append(track)
-                                                
-                                                if track['id'] not in track_playlist_map:
-                                                    track_playlist_map[track['id']] = []
-                                                track_playlist_map[track['id']].append({
-                                                    'id': item['id'],
-                                                    'name': item['name']
-                                                })
-                                        
-                                        if not tracks_results['next']:
-                                            break
-                                            
-                                        # Get next batch of tracks with retry
-                                        retries = 3
-                                        while retries > 0:
-                                            try:
-                                                tracks_results = sp.next(tracks_results)
-                                                break
-                                            except Exception as e:
-                                                retries -= 1
-                                                if retries == 0:
-                                                    raise e
-                                                print(f"Retrying tracks fetch for {item['name']}")
-                                                time.sleep(1)  # Wait before retry
-                                                
-                                    except Exception as e:
-                                        print(f"Error processing tracks batch in {item['name']}: {str(e)}")
-                                        continue  # Try to process remaining tracks
-                                
-                                print(f"Found {len(playlist_tracks)} tracks in playlist {item['name']}")
-                                
-                                # Optimize playlist data
+                                    for track_item in tracks_results['items']:
+                                        if track_item['track']:
+                                            track = track_item['track']
+                                            playlist_tracks.append(track)
+                                            if track['id'] not in track_playlist_map:
+                                                track_playlist_map[track['id']] = []
+                                            track_playlist_map[track['id']].append({
+                                                'id': item['id'],
+                                                'name': item['name']
+                                            })
+                                    if not tracks_results['next']:
+                                        break
+                                    tracks_results = sp.next(tracks_results)
                                 optimized_playlist = optimize_playlist_data(full_playlist, playlist_tracks, track_playlist_map)
                                 playlists.append(optimized_playlist)
-                                
-                                # Add a small delay between playlists to avoid rate limits
-                                time.sleep(0.5)
-                                
-                                # Send a keepalive progress update
                                 yield format_sse({
                                     'progress': {
                                         'current': current_batch,
@@ -533,75 +471,32 @@ def sync_library():
                                         'playlist': item['name']
                                     }
                                 })
-                                
                             except Exception as e:
                                 print(f"Error processing playlist {item['name']}: {str(e)}")
-                                continue  # Try to process remaining playlists
-                        
-                        # Save progress after each batch
-                        try:
-                            user_id = session.get('user_id')
-                            if user_id:
-                                batch_data = {
-                                    'playlists': playlists,
-                                    'last_sync': int(time.time())
-                                }
-                                save_user_data(user_id, batch_data)
-                                print(f"Progress saved: {len(playlists)} playlists")
-                        except Exception as e:
-                            print(f"Warning: Could not save progress: {str(e)}")
-                        
-                        # Add a small delay between batches
-                        time.sleep(1)
-                        
-                        # Get next batch if we haven't reached our target
-                        if processed < total_to_process and results['next']:
-                            retries = 3
-                            while retries > 0:
-                                try:
-                                    results = sp.next(results)
-                                    break
-                                except Exception as e:
-                                    retries -= 1
-                                    if retries == 0:
-                                        raise e
-                                    print("Retrying next playlists batch fetch")
-                                    time.sleep(1)  # Wait before retry
-                        
-                        current_batch += 1
+                                continue
+                        user_id = session.get('user_id')
+                        if user_id:
+                            batch_data = {
+                                'playlists': playlists,
+                                'last_sync': int(time.time())
+                            }
+                            save_user_data(user_id, batch_data)
                         yield format_sse({
                             'progress': {
-                                'current': current_batch,
+                                'current': current_batch + 1,
                                 'total': total_batches
                             }
                         })
-                        
                     except Exception as e:
                         print(f"Error processing batch: {str(e)}")
-                        # Try to continue with next batch if we haven't reached our target
-                        if processed < total_to_process and results['next']:
-                            results = sp.next(results)
-                            current_batch += 1
-                            yield format_sse({
-                                'progress': {
-                                    'current': current_batch,
-                                    'total': total_batches
-                                }
-                            })
-                        else:
-                            break
-                
-                # Final save
                 data = {
                     'playlists': playlists,
                     'last_sync': int(time.time())
                 }
-                
                 user_id = session.get('user_id')
                 if user_id:
                     try:
                         save_user_data(user_id, data)
-                        print("Data saved successfully")
                     except Exception as e:
                         print(f"Error saving data: {str(e)}")
                         yield format_sse({
@@ -609,14 +504,11 @@ def sync_library():
                             'error': 'Failed to save data'
                         })
                         return
-                
-                # Send final success response
                 yield format_sse({
                     'success': True,
                     'playlists': playlists,
                     'last_sync': data['last_sync']
                 })
-            
             response = Response(
                 generate(),
                 mimetype='text/event-stream',
@@ -624,14 +516,11 @@ def sync_library():
                     'Cache-Control': 'no-cache, no-store, must-revalidate, no-transform',
                     'Connection': 'keep-alive',
                     'X-Accel-Buffering': 'no',
-                    'Content-Type': 'text/event-stream; charset=utf-8',
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Credentials': 'true'
+                    'Content-Type': 'text/event-stream; charset=utf-8'
                 }
             )
-            response.timeout = None  # Disable timeout
+            response.timeout = None
             return response
-            
         except Exception as e:
             print(f"Error in playlist sync: {str(e)}")
             return app.response_class(
@@ -639,7 +528,6 @@ def sync_library():
                 status=500,
                 mimetype='application/json'
             )
-            
     except Exception as e:
         print(f"Error in sync_library: {str(e)}")
         return app.response_class(
