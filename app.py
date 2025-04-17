@@ -598,10 +598,14 @@ def get_playlists():
         with open(os.path.join(data_dir, json_files[0]), 'r', encoding='utf-8') as f:
             data = json.load(f)
             
+        # Get page size from environment variable
+        page_size = int(os.environ.get('PLAYLIST_PAGE_SIZE', 20))
+            
         return jsonify({
             'success': True,
             'playlists': data['playlists'],
-            'last_sync': data.get('last_sync', 0)
+            'last_sync': data.get('last_sync', 0),
+            'page_size': page_size
         })
         
     except Exception as e:

@@ -6,7 +6,8 @@
      data-playlists="{{ playlists if playlists else '[]' }}"
      data-current-playlist="{{ current_playlist if current_playlist else 'null' }}"
      data-tracks="{{ tracks if tracks else '[]' }}"
-     data-last-sync="{{ last_sync|string if last_sync else '0' }}">
+     data-last-sync="{{ last_sync|string if last_sync else '0' }}"
+     data-page-size="{{ page_size if page_size else '20' }}">
 </div>
 
 <script>
@@ -32,7 +33,8 @@ document.addEventListener('DOMContentLoaded', () => {
         playlists: JSON.parse(appData.dataset.playlists || '[]'),
         currentPlaylist: JSON.parse(appData.dataset.currentPlaylist || 'null'),
         tracks: JSON.parse(appData.dataset.tracks || '[]'),
-        lastSync: parseInt(appData.dataset.lastSync || '0')
+        lastSync: parseInt(appData.dataset.lastSync || '0'),
+        pageSize: parseInt(appData.dataset.pageSize || '20')
     };
     
     // Debug log
@@ -124,11 +126,21 @@ function renderPlaylists(playlists) {
     const playlistContainer = document.getElementById('playlistList');
     if (!playlistContainer) return;
 
+    // Use pageSize from environment variable
+    const pageSize = window.initialData.pageSize || 20;
+    let currentPage = 1;
+    let totalPages = Math.ceil(playlists.length / pageSize);
+
+    // Get the current page's playlists
+    const start = (currentPage - 1) * pageSize;
+    const end = start + pageSize;
+    const pagePlaylists = playlists.slice(start, end);
+
     // Group playlists by folder
     const folders = {};
     const rootPlaylists = [];
 
-    playlists.forEach(playlist => {
+    pagePlaylists.forEach(playlist => {
         if (playlist.folder) {
             const folderName = playlist.folder.name;
             if (!folders[folderName]) {
@@ -513,11 +525,12 @@ function syncData() {
     function updateProgress(current, total, playlist = '') {
         const progressEl = document.getElementById('syncProgress');
         if (progressEl) {
-            let text = `Step ${current}/${total}`;
+            // Only show the playlist name, not the step count
+            let text = '';
             if (playlist) {
-                text += `\n${playlist}`;
+                text = playlist;
             }
-            progressEl.innerHTML = text.replace('\n', '<br>');
+            progressEl.innerHTML = text;
         }
     }
 
@@ -1404,7 +1417,7 @@ function initializeTooltips() {
                 <span class="visually-hidden">Loading...</span>
             </div>
             <div class="mb-2">Synchronizing library...</div>
-            <div id="syncProgress" class="text-success" style="font-size: 14px;">Step 0/0</div>
+            <div id="syncProgress" class="text-success" style="font-size: 14px;"></div>
         </div>
     </div>
 </div>
