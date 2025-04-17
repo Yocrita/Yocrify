@@ -392,10 +392,11 @@ def sync_library():
         try:
             playlists = []
             track_playlist_map = {}
-            # Now load 22 playlists, with pagination (20 per page)
-            results = sp.current_user_playlists(limit=20)
+            # Now load 22 playlists, with pagination (10 per page)
+            PAGE_SIZE = 10
+            results = sp.current_user_playlists(limit=PAGE_SIZE)
             total_to_process = min(22, results['total'])
-            total_batches = (total_to_process + 19) // 20
+            total_batches = (total_to_process + PAGE_SIZE - 1) // PAGE_SIZE
             current_batch = 1
             processed = 0
             def format_sse(data):
