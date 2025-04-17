@@ -1,12 +1,13 @@
 import os
 import json
-from flask import Flask, render_template, session, redirect, request, url_for, jsonify, send_from_directory, Response
+from flask import Flask, render_template, session, redirect, request, url_for, jsonify, send_from_directory, Response, stream_with_context
 from flask_cors import CORS
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from dotenv import load_dotenv
 import time
 from werkzeug.exceptions import HTTPException
+import sys
 
 load_dotenv()
 
@@ -431,15 +432,16 @@ def sync_library():
             
             def generate():
                 nonlocal current_batch, processed, playlists
-                yield format_sse({
-                    'progress': {
-                        'current': current_batch,
-                        'total': total_batches,
-                        'playlist': 'Starting...'
-                    }
-                })
-                if results and processed < total_to_process:
-                    try:
+                try:
+                    yield format_sse({
+                        'progress': {
+                            'current': current_batch,
+                            'total': total_batches,
+                            'playlist': 'Starting...'
+                        }
+                    })
+                    sys.stdout.flush()
+                    if results and processed < total_to_process:
                         batch_size = min(len(results['items']), total_to_process)
                         items_to_process = results['items'][:batch_size]
                         processed += batch_size
@@ -471,6 +473,7 @@ def sync_library():
                                         'playlist': item['name']
                                     }
                                 })
+                                sys.stdout.flush()
                             except Exception as e:
                                 print(f"Error processing playlist {item['name']}: {str(e)}")
                                 continue
@@ -487,40 +490,54 @@ def sync_library():
                                 'total': total_batches
                             }
                         })
-                    except Exception as e:
-                        print(f"Error processing batch: {str(e)}")
-                data = {
-                    'playlists': playlists,
-                    'last_sync': int(time.time())
-                }
-                user_id = session.get('user_id')
-                if user_id:
-                    try:
-                        save_user_data(user_id, data)
-                    except Exception as e:
-                        print(f"Error saving data: {str(e)}")
-                        yield format_sse({
-                            'success': False,
-                            'error': 'Failed to save data'
-                        })
-                        return
-                yield format_sse({
-                    'success': True,
-                    'playlists': playlists,
-                    'last_sync': data['last_sync']
-                })
-            response = Response(
-                generate(),
-                mimetype='text/event-stream',
-                headers={
-                    'Cache-Control': 'no-cache, no-store, must-revalidate, no-transform',
-                    'Connection': 'keep-alive',
-                    'X-Accel-Buffering': 'no',
-                    'Content-Type': 'text/event-stream; charset=utf-8'
-                }
-            )
-            response.timeout = None
-            return response
+                        sys.stdout.flush()
+                    data = {
+                        'playlists': playlists,
+                        'last_sync': int(time.time())
+                    }
+                    user_id = session.get('user_id')
+                    if user_id:
+                        try:
+                            save_user_data(user_id, data)
+                        except Exception as e:
+                            print(f"Error saving data: {str(e)}")
+                            yield format_sse({
+                                'success': False,
+                                'error': 'Failed to save data'
+                            })
+                            sys.stdout.flush()
+                            return
+                    # FINAL SSE message
+                    yield format_sse({
+                        'success': True,
+                        'playlists': playlists,
+                        'last_sync': data['last_sync']
+                    })
+                    sys.stdout.flush()
+                except Exception as e:
+                    print(f"Exception in SSE generator: {str(e)}")
+                    yield format_sse({'type': 'error', 'message': str(e)})
+                    sys.stdout.flush()
+            try:
+                response = Response(
+                    stream_with_context(generate()),
+                    mimetype='text/event-stream',
+                    headers={
+                        'Cache-Control': 'no-cache, no-store, must-revalidate, no-transform',
+                        'Connection': 'keep-alive',
+                        'X-Accel-Buffering': 'no',
+                        'Content-Type': 'text/event-stream; charset=utf-8'
+                    }
+                )
+                response.timeout = None
+                return response
+            except Exception as e:
+                print(f"Error in SSE generator: {str(e)}")
+                return app.response_class(
+                    response=json.dumps({'success': False, 'error': 'Failed to sync playlists. Please try again.'}),
+                    status=500,
+                    mimetype='application/json'
+                )
         except Exception as e:
             print(f"Error in playlist sync: {str(e)}")
             return app.response_class(
