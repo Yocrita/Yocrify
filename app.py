@@ -371,7 +371,6 @@ def get_playlist_folder_info(sp):
 @app.route('/sync_library', methods=['GET', 'OPTIONS'])
 def sync_library():
     if request.method == 'OPTIONS':
-        # Preflight request. Reply successfully:
         response = app.response_class(
             response="",
             status=200,
@@ -393,14 +392,12 @@ def sync_library():
         try:
             playlists = []
             track_playlist_map = {}
-            
-            # TEST: Load only 20 playlists, pagination of 20
+            # Now load 22 playlists, with pagination (20 per page)
             results = sp.current_user_playlists(limit=20)
-            total_to_process = min(20, results['total'])
-            total_batches = 1  # Only one batch since limit=20
+            total_to_process = min(22, results['total'])
+            total_batches = (total_to_process + 19) // 20
             current_batch = 1
             processed = 0
-            
             def format_sse(data):
                 try:
                     if isinstance(data, dict):
@@ -429,9 +426,8 @@ def sync_library():
                 except Exception as e:
                     print(f"Error formatting SSE data: {str(e)}")
                     return f"data: {{\"type\":\"error\",\"message\":\"Internal server error\"}}\n\n"
-            
             def generate():
-                nonlocal current_batch, processed, playlists
+                nonlocal current_batch, processed, playlists, results
                 try:
                     yield format_sse({
                         'progress': {
@@ -441,8 +437,8 @@ def sync_library():
                         }
                     })
                     sys.stdout.flush()
-                    if results and processed < total_to_process:
-                        batch_size = min(len(results['items']), total_to_process)
+                    while results and processed < total_to_process:
+                        batch_size = min(len(results['items']), total_to_process - processed)
                         items_to_process = results['items'][:batch_size]
                         processed += batch_size
                         for item in items_to_process:
@@ -484,13 +480,19 @@ def sync_library():
                                 'last_sync': int(time.time())
                             }
                             save_user_data(user_id, batch_data)
-                        yield format_sse({
-                            'progress': {
-                                'current': current_batch + 1,
-                                'total': total_batches
-                            }
-                        })
-                        sys.stdout.flush()
+                        # Go to next batch if needed
+                        if processed < total_to_process and results['next']:
+                            results = sp.next(results)
+                            current_batch += 1
+                            yield format_sse({
+                                'progress': {
+                                    'current': current_batch,
+                                    'total': total_batches
+                                }
+                            })
+                            sys.stdout.flush()
+                        else:
+                            break
                     data = {
                         'playlists': playlists,
                         'last_sync': int(time.time())
