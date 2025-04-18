@@ -412,6 +412,15 @@ body {
     background: rgba(255, 255, 255, 0.4);
 }
 
+/* Version info */
+.version-info {
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    text-align: center;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 12px;
+}
+
 /* Media queries */
 @media (max-width: 768px) {
     .sidebar {
