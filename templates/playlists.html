@@ -1451,8 +1451,24 @@ function initializeTooltips() {
 // Scaling logic
 function updateScale() {
     const container = document.querySelector('.app-container');
-    const scale = Math.min(window.innerWidth / 3840, 1); // Scale based on 4K width
+    
+    // Get device pixel ratio (accounts for Windows scaling)
+    const dpr = window.devicePixelRatio || 1;
+    
+    // Get actual physical width (accounting for Windows scaling)
+    const physicalWidth = window.innerWidth * dpr;
+    
+    // Calculate scale based on physical width
+    const scale = Math.min(physicalWidth / 3840, 1);
+    
+    // Apply scale transform
     container.style.transform = `scale(${scale})`;
+    
+    // Log scaling information
+    console.log(`Window width: ${window.innerWidth}`);
+    console.log(`Device pixel ratio: ${dpr}`);
+    console.log(`Physical width: ${physicalWidth}`);
+    console.log(`Applied scale: ${scale}`);
 }
 
 // Update scale on load and resize
