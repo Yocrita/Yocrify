@@ -10,681 +10,99 @@
      data-page-size="{{ page_size|string if page_size else '20' }}">
 </div>
 
-<style>
-/* Reset and base styles */
-body {
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-    height: 100vh;
-    width: 100vw;
-}
-
-/* App container for scaling */
-.app-container {
-    position: relative;
-    width: 3840px;
-    height: 100vh;
-    transform-origin: top left;
-}
-
-/* Main layout */
-.sidebar {
-    position: fixed;
-    left: 0;
-    top: 0;
-    width: 525px;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    background-color: #000;
-    overflow: hidden;
-    z-index: 1;
-}
-
-.main-content {
-    position: fixed;
-    left: 525px;
-    top: 0;
-    width: 3315px;
-    height: 100vh;
-    overflow: auto;
-    padding: 20px;
-    margin: 0;
-    box-sizing: border-box;
-    background-color: #121212;
-}
-
-#mainContent {
-    width: 100%;
-    margin: 0;
-    padding: 0;
-}
-
-/* Track list layout */
-.track-list {
-    width: 100%;
-    margin: 0;
-    padding: 0;
-}
-
-/* Playlist grid layout */
-.playlist-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 24px;
-    width: 100%;
-}
-
-/* Folder styles */
-.playlist-folder {
-    margin: 0;
-}
-
-.folder-header {
-    color: #b3b3b3;
-    font-size: 14px;
-    padding: 8px 16px;
-    margin-bottom: 4px;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    background-color: rgba(255, 255, 255, 0.07);
-    transition: background-color 0.2s;
-    font-weight: bolder;
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-}
-
-.folder-header:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-.folder-icon {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: #b3b3b3;
-    width: 16px;
-}
-
-.folder-arrow {
-    transition: transform 0.2s;
-    font-size: 12px;
-}
-
-.folder-title {
-    margin-left: 0px;
-    flex-grow: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.folder-count {
-    font-size: 0.875rem;
-    margin-left: 8px;
-}
-
-.folder-content {
-    padding-left: 16px;
-    overflow: hidden;
-    max-height: none;
-    transition: max-height 0.3s ease-in-out;
-}
-
-.folder-content.collapsed {
-    max-height: 0;
-}
-
-/* Update playlist item margins inside folders */
-.folder-content .playlist-item {
-    margin-bottom: 1px;
-}
-
-/* Ensure proper spacing between sections */
-.playlist-item:not(.folder-content .playlist-item) {
-    margin-bottom: 2px;
-}
-
-/* Tooltip customization */
-.tooltip {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    pointer-events: none;
-    position: absolute;
-}
-
-.tooltip .tooltip-inner {
-    background-color: #282828;
-    color: #fff;
-    border-radius: 4px;
-    padding: 6px 12px;
-    font-size: 0.875rem;
-    max-width: 280px;
-    text-align: left;
-}
-
-.tooltip.bs-tooltip-end .tooltip-arrow {
-    top: 50% !important;
-    transform: translateY(-50%);
-}
-
-.tooltip.bs-tooltip-end .tooltip-arrow::before {
-    border-right-color: #282828;
-}
-
-/* Position the tooltip container relative to the playlist item */
-.playlist-item {
-    position: relative;
-}
-
-/* Ensure sidebar doesn't clip tooltips */
-.sidebar {
-    height: 100vh;
-    overflow-y: auto;
-    padding: 16px;
-    position: fixed;
-    width: 525px;
-}
-
-.main-content {
-    padding: 20px;
-    margin: 0;
-}
-
-.sidebar-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.library-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.library-header i {
-    font-size: 24px;
-    color: #b3b3b3;
-}
-
-.library-header span {
-    color: #fff;
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: -0.5px;
-}
-
-.btn-sync {
-    background: transparent;
-    border: none;
-    color: #b3b3b3;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px;
-    border-radius: 4px;
-    transition: all 0.2s;
-}
-
-.btn-sync:hover {
-    color: #fff;
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-.btn-sync.sync-today {
-    color: #1ed760;
-}
-
-.btn-sync.sync-old {
-    color: #ff0000;
-}
-.btn-sync i {
-    font-size: 14px;
-}
-
-.btn-sync span {
-    font-size: 14px;
-    font-weight: 500;
-}
-
-.search-separator {
-    width: 100%;
-    height: 1px;
-    background-color: rgba(255, 255, 255, 0.2);
-    margin: 0 -16px;
-    padding: 0 16px;
-    position: absolute;
-}
-
-.search-input-wrapper {
-    position: relative;
-    width: 100%;
-    display: flex;
-    gap: 1px;
-    background-color: rgba(255, 255, 255, 0.1);
-    border-radius: 4px;
-    padding: 2px;
-}
-
-#playlistSearch {
-    flex: 1;
-    height: 28px;
-    padding: 6px 12px;
-    border-radius: 3px;
-    border: none;
-    background-color: rgba(0, 0, 0, 0.2);  
-    color: #fff;
-    font-size: 14px;
-    font-weight: 400;
-    letter-spacing: 0.25px;
-    transition: all 0.2s ease;
-}
-
-#playlistSearch::placeholder {
-    color: #969696;
-    opacity: 1;
-}
-
-#playlistSearch:hover {
-    background-color: rgba(0, 0, 0, 0.3);
-}
-
-#playlistSearch:focus {
-    outline: none;
-    background-color: rgba(0, 0, 0, 0.4);
-}
-
-.library-header {
-    padding: 8px;
-    border-radius: 4px;
-    background-color: #000;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.library-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: #fff;
-}
-
-.library-title i {
-    color: #fff;
-}
-
-.sync-button {
-    background-color: transparent;
-    border: 1px solid #1DB954;
-    border-radius: 16px;
-    color: #1DB954;
-    padding: 4px 12px;
-    font-size: 0.875rem;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.sync-button:hover {
-    background-color: rgba(29, 185, 84, 0.1);
-}
-
-.sync-button i {
-    font-size: 12px;
-}
-
-.sync-button.sync-today {
-    color: #1ed760;
-}
-
-.sync-button.sync-old {
-    color: #ff0000;
-}
-
-.playlist-item[data-hidden="true"] {
-    display: none;
-}
-
-.playlist-folder[data-hidden="true"] {
-    display: none;
-}
-
-/* Playlist grid layout */
-.playlist-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 24px;
-    width: 100%;
-}
-
-.library-sections {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    padding: 0 16px;
-}
-
-.playlist-list {
-    flex: 1;
-    overflow-y: auto;
-    height: calc(100vh - 120px);
-}
-
-.folder {
-    padding: 8px 16px 8px 8px;
-    margin-bottom: 4px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    transition: background-color 0.2s;
-    border-radius: 4px;
-    margin-right: 8px;
-}
-
-.folder:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-.folder-icon {
-    margin-right: 12px;
-    color: #b3b3b3;
-    width: 16px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-}
-
-.folder-name {
-    font-size: 14px;
-    font-weight: bolder;
-    color: #fff;
-    flex: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.folder[aria-expanded="true"] {
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-.folder[aria-expanded="true"] .folder-icon {
-    color: #fff;
-}
-
-.playlist-item {
-    padding: 8px 16px;
-}
-
-.playlist-item[data-folder] {
-    margin-left: 0px;  /* Indent playlist items in folders */
-}
-
-.library-sections {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.section-header {
-    color: #b3b3b3;
-    font-size: 14px;
-    margin: 16px 0 8px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    padding-left: 8px;
-}
-
-.liked-songs {
-    padding: 8px 16px;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: background-color 0.2s;
-}
-
-.liked-songs:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-.liked-songs .playlist-item-content {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.liked-songs .playlist-image {
-    background: linear-gradient(135deg, #450af5, #c4efd9);
-    width: 48px;
-    height: 48px;
-    min-width: 48px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 4px;
-}
-
-.liked-songs .playlist-image i {
-    color: #fff;
-    font-size: 1.25rem;
-}
-
-.liked-songs .playlist-info {
-    flex: 1;
-    min-width: 0;
-}
-
-.liked-songs .playlist-name {
-    color: #fff;
-    font-weight: 500;
-    margin-bottom: 4px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.liked-songs .playlist-details {
-    color: #b3b3b3;
-    font-size: 0.875rem;
-}
-
-.playlist-item {
-    padding: 8px 16px;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    border-radius: 4px;
-    margin-bottom: 2px;
-    position: relative;
-}
-
-.playlist-item:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-.playlist-item-content {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-}
-
-.playlist-image {
-    width: 48px;
-    height: 48px;
-    flex-shrink: 0;
-}
-
-.playlist-image img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    border-radius: 4px;
-}
-
-.playlist-info {
-    flex: 0 1 90%;
-    min-width: 0;
-}
-
-.badge-container {
-    flex: 0 0 10%;
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    min-width: fit-content;
-}
-
-.playlist-name {
-    color: #fff;
-    font-weight: 400;
-    margin-bottom: 4px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.playlist-details {
-    color: #b3b3b3;
-    font-size: 0.875rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.duplicate-badge {
-    background-color: #1a74e8;
-    color: white;
-    border-radius: 12px;
-    padding: 2px 8px;
-    font-size: 0.75rem;
-    min-width: 24px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.input-group {
-    background-color: #242424;
-    border-radius: 4px;
-    margin: 8px 16px;
-}
-
-.input-group-text {
-    background-color: transparent;
-    border: none;
-    padding: 8px 12px;
-}
-
-.input-group-text i {
-    color: #b3b3b3;
-}
-
-.form-control {
-    background-color: transparent;
-    border: none;
-    color: #fff;
-    padding: 8px 0;
-    font-size: 14px;
-    font-weight: 400;
-    letter-spacing: 0.25px;
-    transition: all 0.2s;
-}
-
-.form-control:focus {
-    background-color: transparent;
-    box-shadow: none;
-    color: #fff;
-}
-
-.form-control::placeholder {
-    color: #969696;
-    opacity: 1;
-}
-
-.form-control:hover {
-    background-color: rgba(255, 255, 255, 0.15);
-}
-
-.search-container {
-    position: relative;
-    padding: 20px 16px;
-    margin: 16px 0px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
-
-.search-separator {
-    width: 100%;
-    height: 1px;
-    background-color: rgba(255, 255, 255, 0.2);
-    margin: 0 -16px;
-    padding: 0 16px;
-    position: absolute;
-}
-
-.search-separator:first-child {
-    top: 0;  
-}
-
-.search-separator:last-child {
-    bottom: 0;  
-}
-
-.search-input-wrapper {
-    position: relative;
-    width: 100%;
-    display: flex;
-    gap: 1px;
-    background-color: rgba(255, 255, 255, 0.1);
-    border-radius: 4px;
-    padding: 2px;
-}
-
-.search-icon-button {
-    background-color: rgba(255, 255, 255, 0.07);  
-    border: none;
-    border-radius: 3px;
-    width: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.search-icon-button:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-.search-icon {
-    color: #969696;
-    font-size: 14px;
-    transition: color 0.2s ease;
-}
-
-.search-icon-button:hover .search-icon {
-    color: #fff;
-}
-.version-info {
-    margin-top: auto;
-    padding: 8px;
-    border-top: 1px solid rgba(255, 255, 255, 0.2);
-    text-align: center;
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 12px;
-}
-</style>
+<!-- App container for scaling -->
+<div class="app-container">
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <!-- Library header -->
+        <div class="sidebar-header">
+            <div class="library-header">
+                <i class="fas fa-music"></i>
+                <span>Your Library</span>
+            </div>
+            <button id="syncButton" onclick="syncData()" class="btn-sync sync-today">
+                <i class="fas fa-sync-alt"></i>
+                <span>Sync</span>
+            </button>
+        </div>
+
+        <!-- Search box -->
+        <div class="search-container">
+            <div class="search-separator"></div>
+            <div class="search-input-wrapper">
+                <button class="search-icon-button">
+                    <i class="fas fa-search search-icon"></i>
+                </button>
+                <input type="text" id="playlistSearch" placeholder="Search in Your Library" oninput="filterPlaylists()">
+            </div>
+            <div class="search-separator"></div>
+        </div>
+
+        <!-- Library sections -->
+        <div class="library-sections">
+            <!-- Liked Songs -->
+            <div class="liked-songs">
+                <div class="playlist-item-content">
+                    <div class="playlist-image">
+                        <i class="fas fa-heart"></i>
+                    </div>
+                    <div class="playlist-info">
+                        <div class="playlist-name">Liked Songs</div>
+                        <div class="playlist-details">Playlist</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Playlists header -->
+            <div class="section-header">
+                <span>Playlists</span>
+            </div>
+
+            <!-- Playlist list -->
+            <div id="playlistList" class="playlist-list">
+                <!-- Playlists will be rendered here -->
+            </div>
+        </div>
+
+        <!-- Version info -->
+        <div class="version-info">
+            Deployed Version: {{ deployed_version }}
+        </div>
+    </div>
+
+    <!-- Main content -->
+    <div class="main-content">
+        <div id="mainContent">
+            <!-- Content will be loaded here -->
+        </div>
+    </div>
+</div>
+
+<!-- Toast notification -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="syncToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong class="me-auto">Spotify App</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body" id="syncToastMessage">
+        </div>
+    </div>
+</div>
+
+<!-- Loading overlay -->
+<div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-none">
+    <div class="d-flex justify-content-center align-items-center h-100">
+        <div class="text-white text-center">
+            <div class="spinner-border text-success mb-3" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <div class="mb-2">Synchronizing library...</div>
+            <div id="syncProgress" class="text-success"></div>
+        </div>
+    </div>
+</div>
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
@@ -1442,100 +860,5 @@ window.addEventListener('load', updateScale);
 window.addEventListener('resize', updateScale);
 
 </script>
-
-<!-- App container for scaling -->
-<div class="app-container">
-    <!-- Sidebar -->
-    <div class="sidebar">
-        <!-- Library header -->
-        <div class="sidebar-header">
-            <div class="library-header">
-                <i class="fas fa-music"></i>
-                <span>Your Library</span>
-            </div>
-            <button id="syncButton" onclick="syncData()" class="btn-sync sync-today">
-                <i class="fas fa-sync-alt"></i>
-                <span>Sync</span>
-            </button>
-        </div>
-
-        <!-- Search box -->
-        <div class="search-container">
-            <div class="search-separator"></div>
-            <div class="search-input-wrapper">
-                <button class="search-icon-button">
-                    <i class="fas fa-search search-icon"></i>
-                </button>
-                <input type="text" id="playlistSearch" placeholder="Search in Your Library" oninput="filterPlaylists()">
-            </div>
-            <div class="search-separator"></div>
-        </div>
-
-        <!-- Library sections -->
-        <div class="library-sections">
-            <!-- Liked Songs -->
-            <div class="liked-songs">
-                <div class="playlist-item-content">
-                    <div class="playlist-image">
-                        <i class="fas fa-heart"></i>
-                    </div>
-                    <div class="playlist-info">
-                        <div class="playlist-name">Liked Songs</div>
-                        <div class="playlist-details">Playlist</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Playlists header -->
-            <div class="section-header">
-                <span>Playlists</span>
-            </div>
-
-            <!-- Playlist list -->
-            <div id="playlistList" class="playlist-list">
-                <!-- Playlists will be rendered here -->
-            </div>
-        </div>
-
-        <!-- Version info -->
-        <div class="version-info">
-            Deployed Version: {{ deployed_version }}
-        </div>
-    </div>
-
-    <!-- Main content -->
-    <div class="main-content">
-        <div id="mainContent">
-            <!-- Content will be loaded here -->
-        </div>
-    </div>
-</div>
-
-<!-- Toast notification -->
-<div class="toast-container position-fixed bottom-0 end-0 p-3">
-    <div id="syncToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
-        <div class="toast-header">
-            <i class="fas fa-info-circle me-2"></i>
-            <strong class="me-auto">Spotify App</strong>
-            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-        <div class="toast-body" id="syncToastMessage">
-        </div>
-    </div>
-</div>
-
-<!-- Loading overlay -->
-<div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-none" 
-     style="background: rgba(0,0,0,0.7); z-index: 9999;">
-    <div class="d-flex justify-content-center align-items-center h-100">
-        <div class="text-white text-center">
-            <div class="spinner-border text-success mb-3" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-            <div class="mb-2">Synchronizing library...</div>
-            <div id="syncProgress" class="text-success" style="font-size: 14px;"></div>
-        </div>
-    </div>
-</div>
 
 {% endblock %}

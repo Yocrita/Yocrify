@@ -10,29 +10,6 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
     <!-- Custom CSS -->
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
-    <style>
-        /* Toast styles */
-        #toast {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background-color: #333;
-            color: white;
-            padding: 15px 25px;
-            border-radius: 5px;
-            display: none;
-            z-index: 1000;
-        }
-
-        #toast.error {
-            background-color: #dc3545;
-        }
-
-        #toast.show {
-            display: block;
-            animation: fadeIn 0.5s, fadeOut 0.5s 2.5s;
-        }
-    </style>
 </head>
 <body class="bg-dark text-white">
     <!-- Main content -->
