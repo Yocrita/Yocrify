@@ -7,7 +7,7 @@
      data-current-playlist="{{ current_playlist if current_playlist else 'null' }}"
      data-tracks="{{ tracks if tracks else '[]' }}"
      data-last-sync="{{ last_sync|string if last_sync else '0' }}"
-     data-page-size="{{ page_size if page_size else '20' }}">
+     data-page-size="{{ page_size|string if page_size else '20' }}">
 </div>
 
 <script>

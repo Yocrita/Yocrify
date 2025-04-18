@@ -55,6 +55,9 @@ SPOTIFY_CLIENT_SECRET = os.getenv('SPOTIFY_CLIENT_SECRET')
 SPOTIFY_REDIRECT_URI = os.getenv('SPOTIFY_REDIRECT_URI')
 SCOPE = 'user-library-read playlist-read-private playlist-read-collaborative'
 
+# Page size configuration
+PLAYLIST_PAGE_SIZE = int(os.getenv('PLAYLIST_PAGE_SIZE', '20'))
+
 def create_spotify_oauth():
     return SpotifyOAuth(
         client_id=SPOTIFY_CLIENT_ID,
@@ -599,7 +602,7 @@ def get_playlists():
             data = json.load(f)
             
         # Get page size from environment variable
-        page_size = int(os.environ.get('PLAYLIST_PAGE_SIZE', 20))
+        page_size = PLAYLIST_PAGE_SIZE
             
         return jsonify({
             'success': True,
