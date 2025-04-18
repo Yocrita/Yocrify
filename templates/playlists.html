@@ -797,13 +797,10 @@ function initializeTooltips() {
 }
 
 .library-sections {
-    margin-top: 16px;
-}
-
-.playlist-list {
-    flex: 1;
-    overflow-y: auto;
-    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 16px;
 }
 
 .version-info {
@@ -933,10 +930,9 @@ function initializeTooltips() {
 }
 
 .playlist-list {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 0 16px;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
 }
 
 .playlist-item {
