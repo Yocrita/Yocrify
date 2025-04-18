@@ -789,7 +789,7 @@ function initializeTooltips() {
 }
 
 .playlist-item[data-folder] {
-    margin-left: 24px;  /* Indent playlist items in folders */
+    margin-left: 0px;  /* Indent playlist items in folders */
 }
 
 .folder-header {
@@ -1218,11 +1218,16 @@ function initializeTooltips() {
 
 /* Ensure sidebar doesn't clip tooltips */
 .sidebar {
-    overflow: visible !important;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 16px;
+    position: fixed;
+    width: 350px;
 }
 
-.playlist-list {
-    overflow-x: visible !important;
+.main-content {
+    margin-left: 350px;
+    padding: 20px;
 }
 
 .sidebar-header {
