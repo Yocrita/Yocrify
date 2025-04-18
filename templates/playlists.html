@@ -784,10 +784,12 @@ function initializeTooltips() {
 }
 
 .search-container {
+    position: relative;
     padding: 20px 16px;
     margin: 16px 0px;
-    background-color: #282828;
-    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .search-input-wrapper {
@@ -1064,7 +1066,6 @@ function initializeTooltips() {
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin-bottom: 16px;  /* Add margin after the search container */
 }
 
 .search-separator {
