@@ -1462,10 +1462,17 @@ function updateScale() {
     container.style.transform = `scale(${scale})`;
     
     // Log scaling information
-    console.log(`Window width: ${window.innerWidth}`);
-    console.log(`Device pixel ratio: ${dpr}`);
-    console.log(`Target width with DPI: ${2560 * dpr}`);
+    console.log('----------------------------------------');
+    console.log('WINDOW DIMENSIONS:');
+    console.log(`window.innerWidth: ${window.innerWidth}px`);
+    console.log(`window.outerWidth: ${window.outerWidth}px`);
+    console.log(`window.screen.width: ${window.screen.width}px`);
+    console.log(`window.screen.availWidth: ${window.screen.availWidth}px`);
+    console.log('\nSCALING INFO:');
+    console.log(`Device pixel ratio (DPI): ${dpr}`);
+    console.log(`Target width with DPI: ${2560 * dpr}px`);
     console.log(`Applied scale: ${scale}`);
+    console.log('----------------------------------------');
 }
 
 // Update scale on load and resize
