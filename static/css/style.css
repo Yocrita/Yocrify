@@ -81,7 +81,7 @@ body {
 
 /* Playlist list */
 .playlist-list {
-    padding: 1rem;
+    flex: 1;
     overflow-y: auto;
     height: calc(100vh - 120px);
 }
