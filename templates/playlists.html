@@ -227,8 +227,7 @@ function renderPlaylistItem(playlist) {
                 <div class="playlist-info">
                     <div class="playlist-name">${escapeHtml(displayName)}</div>
                     <div class="playlist-details">
-                        <span class="playlist-tracks">${playlist.tracks_total || 0} tracks</span>
-                        ${formatDuration(playlist.duration_ms || 0)}
+                        <span class="playlist-tracks">${playlist.tracks_total || 0} tracks - ${formatDuration(playlist.duration_ms || 0)}</span>
                     </div>
                 </div>
                 <div class="badge-container">
@@ -350,7 +349,7 @@ function renderPlaylistContent(playlistData) {
         <div class="playlist-header mb-4">
             <h1>${playlistData.name}</h1>
             <p class="text-muted">
-                ${playlistData.tracks.length} tracks • ${playlistData.duration_formatted}
+                ${playlistData.tracks.length} tracks - ${formatDuration(playlistData.duration_ms)}
             </p>
             <!-- Search box for tracks -->
             <div class="input-group mb-3" style="max-width: 300px;">
