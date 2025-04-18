@@ -23,7 +23,7 @@ body {
 /* App container for scaling */
 .app-container {
     position: relative;
-    width: 2160px;
+    width: 3840px;
     height: 100vh;
     transform-origin: top left;
 }
@@ -46,7 +46,7 @@ body {
     position: fixed;
     left: 350px;
     top: 0;
-    width: 1810px;
+    width: 3490px;
     height: 100vh;
     overflow: auto;
     padding: 20px;
@@ -1451,7 +1451,7 @@ function initializeTooltips() {
 // Scaling logic
 function updateScale() {
     const container = document.querySelector('.app-container');
-    const scale = Math.min(window.innerWidth / 2160, 1); // Don't scale up beyond 2160p
+    const scale = Math.min(window.innerWidth / 3840, 1); // Scale based on 4K width
     container.style.transform = `scale(${scale})`;
 }
 
