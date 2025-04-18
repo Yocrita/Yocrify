@@ -757,6 +757,15 @@ function initializeTooltips() {
 </script>
 
 <style>
+/* Reset and base styles */
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;  /* Prevent body level scrolling */
+    height: 100vh;
+    display: flex;
+}
+
 /* Main layout */
 .sidebar {
     position: fixed;
@@ -767,6 +776,23 @@ function initializeTooltips() {
     display: flex;
     flex-direction: column;
     background-color: #000;
+    overflow: hidden; /* Prevent sidebar from scrolling horizontally */
+}
+
+.main-content {
+    position: fixed;
+    left: 350px;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 20px;
+    background-color: #121212;
+}
+
+#mainContent {
+    max-width: 100%;
 }
 
 .library-sections {
@@ -780,23 +806,6 @@ function initializeTooltips() {
     flex: 1;
     overflow-y: auto;
     padding-right: 8px;
-}
-
-.folder-header {
-    margin-bottom: 4px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    transition: background-color 0.2s;
-    border-radius: 4px;
-    margin-right: 8px;
-    background-color: rgba(255, 255, 255, 0.07);
-    font-weight: bolder;
-}
-
-/* Keep existing styles */
-.playlist-item[data-folder] {
-    margin-left: 0px;
 }
 
 .folder {
@@ -1202,281 +1211,6 @@ function initializeTooltips() {
 
 .folder-icon {
     display: flex;
-    align-items: center;
-    gap: 6px;
-    color: #b3b3b3;
-    width: 16px;
-}
-
-.folder-arrow {
-    transition: transform 0.2s;
-    font-size: 12px;
-}
-
-.folder-title {
-    margin-left: 0px;
-    flex-grow: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.folder-count {
-    font-size: 0.875rem;
-    margin-left: 8px;
-}
-
-.folder-content {
-    padding-left: 16px;
-    overflow: hidden;
-    max-height: none;
-    transition: max-height 0.3s ease-in-out;
-}
-
-.folder-content.collapsed {
-    max-height: 0;
-}
-
-/* Update playlist item margins inside folders */
-.folder-content .playlist-item {
-    margin-bottom: 1px;
-}
-
-/* Ensure proper spacing between sections */
-.playlist-item:not(.folder-content .playlist-item) {
-    margin-bottom: 2px;
-}
-
-/* Tooltip customization */
-.tooltip {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    pointer-events: none;
-    position: absolute;
-}
-
-.tooltip .tooltip-inner {
-    background-color: #282828;
-    color: #fff;
-    border-radius: 4px;
-    padding: 6px 12px;
-    font-size: 0.875rem;
-    max-width: 280px;
-    text-align: left;
-}
-
-.tooltip.bs-tooltip-end .tooltip-arrow {
-    top: 50% !important;
-    transform: translateY(-50%);
-}
-
-.tooltip.bs-tooltip-end .tooltip-arrow::before {
-    border-right-color: #282828;
-}
-
-/* Position the tooltip container relative to the playlist item */
-.playlist-item {
-    position: relative;
-}
-
-/* Ensure sidebar doesn't clip tooltips */
-.sidebar {
-    height: 100vh;
-    overflow-y: auto;
-    padding: 16px;
-    position: fixed;
-    width: 350px;
-}
-
-.main-content {
-    margin-left: 350px;
-    padding: 20px;
-}
-
-.sidebar-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.library-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.library-header i {
-    font-size: 24px;
-    color: #b3b3b3;
-}
-
-.library-header span {
-    color: #fff;
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: -0.5px;
-}
-
-.btn-sync {
-    background: transparent;
-    border: none;
-    color: #b3b3b3;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px;
-    border-radius: 4px;
-    transition: all 0.2s;
-}
-
-.btn-sync:hover {
-    color: #fff;
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-.btn-sync.sync-today {
-    color: #1ed760;
-}
-
-.btn-sync.sync-old {
-    color: #ff0000;
-}
-.btn-sync i {
-    font-size: 14px;
-}
-
-.btn-sync span {
-    font-size: 14px;
-    font-weight: 500;
-}
-
-.search-separator {
-    width: 100%;
-    height: 1px;
-    background-color: rgba(255, 255, 255, 0.2);
-    margin: 0 -16px;
-    padding: 0 16px;
-    position: absolute;
-}
-
-.search-input-wrapper {
-    position: relative;
-    width: 100%;
-    display: flex;
-    gap: 1px;
-    background-color: rgba(255, 255, 255, 0.1);
-    border-radius: 4px;
-    padding: 2px;
-}
-
-#playlistSearch {
-    flex: 1;
-    height: 28px;
-    padding: 6px 12px;
-    border-radius: 3px;
-    border: none;
-    background-color: rgba(0, 0, 0, 0.2);  
-    color: #fff;
-    font-size: 14px;
-    font-weight: 400;
-    letter-spacing: 0.25px;
-    transition: all 0.2s ease;
-}
-
-#playlistSearch::placeholder {
-    color: #969696;
-    opacity: 1;
-}
-
-#playlistSearch:hover {
-    background-color: rgba(0, 0, 0, 0.3);
-}
-
-#playlistSearch:focus {
-    outline: none;
-    background-color: rgba(0, 0, 0, 0.4);
-}
-
-.library-header {
-    padding: 8px;
-    border-radius: 4px;
-    background-color: #000;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.library-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: #fff;
-}
-
-.library-title i {
-    color: #fff;
-}
-
-.sync-button {
-    background-color: transparent;
-    border: 1px solid #1DB954;
-    border-radius: 16px;
-    color: #1DB954;
-    padding: 4px 12px;
-    font-size: 0.875rem;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.sync-button:hover {
-    background-color: rgba(29, 185, 84, 0.1);
-}
-
-.sync-button i {
-    font-size: 12px;
-}
-
-.sync-button.sync-today {
-    color: #1ed760;
-}
-
-.sync-button.sync-old {
-    color: #ff0000;
-}
-
-.playlist-item[data-hidden="true"] {
-    display: none;
-}
-
-.playlist-folder[data-hidden="true"] {
-    display: none;
-}
-
-/* Folder styles */
-.playlist-folder {
-    margin: 0;
-}
-
-.folder-header {
-    display: flex;
-    align-items: center;
-    padding: 8px 8px;
-    cursor: pointer;
-    color: #fff;
-    transition: background-color 0.2s;
-    margin: 0;
-    background-color: rgba(255, 255, 255, 0.07);
-    font-weight: bolder;
-}
-
-.folder-header:hover {
-    background-color: rgba(255, 255, 255, 0.1);
-}
-
-.folder-icon {
     align-items: center;
     gap: 6px;
     color: #b3b3b3;
