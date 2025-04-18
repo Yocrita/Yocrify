@@ -758,6 +758,67 @@ function initializeTooltips() {
 </script>
 
 <style>
+/* Main layout */
+.container {
+    display: flex;
+    height: 100vh;
+}
+
+.sidebar {
+    width: 350px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.main-content {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+/* Sidebar sections */
+.sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.search-container {
+    padding: 20px 16px;
+    margin: 16px 0px;
+    background-color: #282828;
+    border-radius: 4px;
+}
+
+.search-input-wrapper {
+    width: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.library-sections {
+    margin-top: 16px;
+}
+
+.playlist-list {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0; /* Allows flex container to shrink */
+}
+
+/* Move footer to bottom */
+.version-info {
+    margin-top: auto;
+    padding: 16px;
+    border-top: 1px solid #282828;
+}
+
+/* Keep existing styles */
+.playlist-item[data-folder] {
+    margin-left: 0px;
+}
+
 .folder {
     padding: 8px 16px;
     background-color: #282828;
@@ -1336,66 +1397,63 @@ function initializeTooltips() {
 }
 </style>
 
-<div class="container-fluid">
-    <div class="row">
-        <!-- Sidebar with library and playlists -->
-        <div class="col-md-2 sidebar">
-            <!-- Library header -->
-            <div class="sidebar-header">
-                <div class="library-header">
-                    <i class="fas fa-music"></i>
-                    <span>Your Library</span>
-                </div>
-                <button id="syncButton" onclick="syncData()" class="btn-sync sync-today">
-                    <i class="fas fa-sync-alt"></i>
-                    <span>Sync</span>
-                </button>
+<div class="container">
+    <div class="sidebar">
+        <!-- Library header -->
+        <div class="sidebar-header">
+            <div class="library-header">
+                <i class="fas fa-music"></i>
+                <span>Your Library</span>
             </div>
-
-            <!-- Search box -->
-            <div class="search-container">
-                <div class="search-separator"></div>
-                <div class="search-input-wrapper">
-                    <button class="search-icon-button">
-                        <i class="fas fa-search search-icon"></i>
-                    </button>
-                    <input type="text" id="playlistSearch" placeholder="Search in Your Library" oninput="filterPlaylists()">
-                </div>
-                <div class="search-separator"></div>
-            </div>
-
-            <!-- Library sections -->
-            <div class="library-sections">
-                <!-- Liked Songs -->
-                <div class="liked-songs">
-                    <div class="playlist-item-content">
-                        <div class="playlist-image">
-                            <i class="fas fa-heart"></i>
-                        </div>
-                        <div class="playlist-info">
-                            <div class="playlist-name">Liked Songs</div>
-                            <div class="playlist-details">Playlist</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Playlists header -->
-                <div class="section-header">
-                    <span>Playlists</span>
-                </div>
-
-                <!-- Playlist list -->
-                <div id="playlistList" class="playlist-list">
-                    <!-- Playlists will be rendered here -->
-                </div>
-            </div>
+            <button id="syncButton" onclick="syncData()" class="btn-sync sync-today">
+                <i class="fas fa-sync-alt"></i>
+                <span>Sync</span>
+            </button>
         </div>
 
-        <!-- Main content -->
-        <div class="col-md-10 main-content">
-            <div id="mainContent">
-                <!-- Content will be loaded here -->
+        <!-- Search box -->
+        <div class="search-container">
+            <div class="search-separator"></div>
+            <div class="search-input-wrapper">
+                <button class="search-icon-button">
+                    <i class="fas fa-search search-icon"></i>
+                </button>
+                <input type="text" id="playlistSearch" placeholder="Search in Your Library" oninput="filterPlaylists()">
             </div>
+            <div class="search-separator"></div>
+        </div>
+
+        <!-- Library sections -->
+        <div class="library-sections">
+            <!-- Liked Songs -->
+            <div class="liked-songs">
+                <div class="playlist-item-content">
+                    <div class="playlist-image">
+                        <i class="fas fa-heart"></i>
+                    </div>
+                    <div class="playlist-info">
+                        <div class="playlist-name">Liked Songs</div>
+                        <div class="playlist-details">Playlist</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Playlists header -->
+            <div class="section-header">
+                <span>Playlists</span>
+            </div>
+
+            <!-- Playlist list -->
+            <div id="playlistList" class="playlist-list">
+                <!-- Playlists will be rendered here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Main content -->
+    <div class="main-content">
+        <div id="mainContent">
+            <!-- Content will be loaded here -->
         </div>
     </div>
 </div>
