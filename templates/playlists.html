@@ -23,7 +23,7 @@ body {
 /* App container for scaling */
 .app-container {
     position: relative;
-    width: 2560px;
+    width: 3840px;
     height: 100vh;
     transform-origin: top left;
 }
@@ -33,7 +33,7 @@ body {
     position: fixed;
     left: 0;
     top: 0;
-    width: 350px;
+    width: 525px;
     height: 100vh;
     display: flex;
     flex-direction: column;
@@ -44,9 +44,9 @@ body {
 
 .main-content {
     position: fixed;
-    left: 350px;
+    left: 525px;
     top: 0;
-    width: 2210px;
+    width: 3315px;
     height: 100vh;
     overflow: auto;
     padding: 20px;
@@ -181,7 +181,7 @@ body {
     overflow-y: auto;
     padding: 16px;
     position: fixed;
-    width: 350px;
+    width: 525px;
 }
 
 .main-content {
@@ -1451,28 +1451,8 @@ function initializeTooltips() {
 // Scaling logic
 function updateScale() {
     const container = document.querySelector('.app-container');
-    
-    // Get device pixel ratio (accounts for Windows scaling)
-    const dpr = window.devicePixelRatio || 1;
-    
-    // Calculate scale based on logical width with DPI multiplication
-    const scale = Math.min(window.innerWidth / (2560 * dpr), 1);
-    
-    // Apply scale transform
+    const scale = Math.min(window.innerWidth / 3840, 1);
     container.style.transform = `scale(${scale})`;
-    
-    // Log scaling information
-    console.log('----------------------------------------');
-    console.log('WINDOW DIMENSIONS:');
-    console.log(`window.innerWidth: ${window.innerWidth}px`);
-    console.log(`window.outerWidth: ${window.outerWidth}px`);
-    console.log(`window.screen.width: ${window.screen.width}px`);
-    console.log(`window.screen.availWidth: ${window.screen.availWidth}px`);
-    console.log('\nSCALING INFO:');
-    console.log(`Device pixel ratio (DPI): ${dpr}`);
-    console.log(`Target width with DPI: ${2560 * dpr}px`);
-    console.log(`Applied scale: ${scale}`);
-    console.log('----------------------------------------');
 }
 
 // Update scale on load and resize
