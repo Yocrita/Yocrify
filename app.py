@@ -242,7 +242,7 @@ def get_git_version():
 
 @app.context_processor
 def inject_git_version():
-    return dict(git_version=get_git_version())
+    return dict(deployed_version=get_git_version())
 
 @app.after_request
 def after_request(response):
