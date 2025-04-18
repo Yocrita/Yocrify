@@ -808,8 +808,11 @@ function initializeTooltips() {
 
 .version-info {
     margin-top: auto;
-    padding: 16px;
+    padding: 8px;
     border-top: 1px solid #282828;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 12px;
 }
 
 /* Keep existing styles */
@@ -1293,7 +1296,6 @@ function initializeTooltips() {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 16px;
 }
 
 .library-header {
@@ -1449,7 +1451,7 @@ function initializeTooltips() {
 
     <!-- Version info -->
     <div class="version-info">
-        <small>Deployed Version: {{ git_version }}</small>
+        {{ deployed_version }}
     </div>
 </div>
 
@@ -1486,9 +1488,5 @@ function initializeTooltips() {
         </div>
     </div>
 </div>
-
-<footer style="position: fixed; bottom: 10px; right: 10px; color: rgba(255, 255, 255, 0.5); font-size: 12px; z-index: 1000;">
-    Deployed Version: {{ git_version }}
-</footer>
 
 {% endblock %}
