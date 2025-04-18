@@ -761,38 +761,46 @@ function initializeTooltips() {
 body {
     margin: 0;
     padding: 0;
-    overflow: hidden;  /* Prevent body level scrolling */
+    overflow: hidden;
     height: 100vh;
+    width: 100vw;
     display: flex;
 }
 
 /* Main layout */
 .sidebar {
-    position: fixed;
-    left: 0;
-    top: 0;
-    width: 350px;
     height: 100vh;
-    display: flex;
-    flex-direction: column;
+    overflow-y: auto;
+    padding: 16px;
+    position: fixed;
+    width: 350px;
     background-color: #000;
-    overflow: hidden; /* Prevent sidebar from scrolling horizontally */
 }
 
 .main-content {
-    position: fixed;
-    left: 350px;
-    top: 0;
-    right: 0;
-    height: 100vh;
-    overflow-y: auto;
-    overflow-x: hidden;
+    margin-left: 350px;
     padding: 20px;
+    box-sizing: border-box;
     background-color: #121212;
 }
 
 #mainContent {
-    max-width: 100%;
+    width: 100%;
+    min-width: 800px; /* Minimum width to maintain layout */
+}
+
+/* Playlist grid layout */
+.playlist-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 24px;
+    width: 100%;
+}
+
+/* Track list layout */
+.track-list {
+    width: 100%;
+    min-width: 600px;
 }
 
 .library-sections {
@@ -800,12 +808,14 @@ body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    padding: 0 16px;
 }
 
 .playlist-list {
     flex: 1;
     overflow-y: auto;
     padding-right: 8px;
+    margin-top: 8px;
 }
 
 .folder {
