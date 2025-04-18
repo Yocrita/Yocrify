@@ -23,7 +23,7 @@ body {
 /* App container for scaling */
 .app-container {
     position: relative;
-    width: 3840px;
+    width: 2560px;
     height: 100vh;
     transform-origin: top left;
 }
@@ -46,7 +46,7 @@ body {
     position: fixed;
     left: 350px;
     top: 0;
-    width: 3490px;
+    width: 2210px;
     height: 100vh;
     overflow: auto;
     padding: 20px;
@@ -1459,7 +1459,7 @@ function updateScale() {
     const physicalWidth = window.innerWidth * dpr;
     
     // Calculate scale based on physical width
-    const scale = Math.min(physicalWidth / 3840, 1);
+    const scale = Math.min(physicalWidth / 2560, 1);
     
     // Apply scale transform
     container.style.transform = `scale(${scale})`;
