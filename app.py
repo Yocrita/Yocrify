@@ -195,13 +195,14 @@ def optimize_playlist_data(playlist, tracks, track_playlist_map):
     folder = None
     name = playlist['name']
     if '_' in name:
-        parts = name.split('_')
-        if len(parts) > 1:
+        # Split only on the first underscore
+        parts = name.split('_', 1)
+        if len(parts) == 2:
             folder = {
                 'name': parts[0].strip(),
-                'path': name[:name.rindex('_')].strip()
+                'path': parts[0].strip()  # Path is just the folder name since we only use first underscore
             }
-            name = parts[-1].strip()
+            name = parts[1].strip()
     
     return {
         'id': playlist['id'],
