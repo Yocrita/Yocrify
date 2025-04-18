@@ -823,28 +823,45 @@ function initializeTooltips() {
 }
 
 .folder {
-    padding: 8px 16px;
-    background-color: #282828;
-    border-radius: 4px;
-    margin-bottom: 8px;
+    padding: 8px 16px 8px 8px;
+    margin-bottom: 4px;
     cursor: pointer;
     display: flex;
     align-items: center;
     transition: background-color 0.2s;
+    border-radius: 4px;
+    margin-right: 8px;
 }
 
 .folder:hover {
-    background-color: #333;
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
 .folder-icon {
     margin-right: 12px;
     color: #b3b3b3;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .folder-name {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 500;
+    color: #fff;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.folder[aria-expanded="true"] {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.folder[aria-expanded="true"] .folder-icon {
     color: #fff;
 }
 
@@ -861,7 +878,7 @@ function initializeTooltips() {
     font-size: 14px;
     margin: 16px 0 8px;
     padding: 0 16px;
-    font-weight: 500;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.1em;
 }
