@@ -13,7 +13,7 @@ html, body {
 /* App container for scaling */
 .app-container {
     position: relative;
-    width: 5760px;  /* 3840 * 1.5 */
+    width: 3840px;
     height: 100vh;
     transform-origin: top left;
 }
@@ -23,7 +23,7 @@ html, body {
     position: fixed;
     left: 0;
     top: 0;
-    width: 787px;  /* 525 * 1.5 */
+    width: 525px;
     height: 100vh;
     display: flex;
     flex-direction: column;
@@ -487,11 +487,11 @@ html, body {
 
 /* Main content */
 .main-content {
-    margin-left: 787px;  /* width of sidebar */
+    margin-left: 525px;
     background-color: #121212;
     min-height: 100vh;
     padding: 48px;  /* 32 * 1.5 */
-    width: calc(100% - 787px);  /* 100% - sidebar width */
+    width: calc(100% - 525px);
 }
 
 /* Playlist grid */
