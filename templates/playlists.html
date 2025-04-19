@@ -850,18 +850,24 @@ function initializeTooltips() {
 function updateScale() {
     const container = document.querySelector('.app-container');
     
-    // Get the actual screen width and DPR
+    // Get the actual screen dimensions
     const screenWidth = window.innerWidth;
-    const dpr = window.devicePixelRatio;
+    const screenHeight = window.innerHeight;
     
-    // Calculate scale - we want to fill the screen width while accounting for DPR
-    const scale = screenWidth / 2560;  // Scale relative to our base design width
+    // Calculate scales for both dimensions
+    const scaleX = screenWidth / 2560;
+    const scaleY = screenHeight / 1440;  // Assuming 1440p height as base
     
+    // Use the minimum scale to maintain aspect ratio and fit both dimensions
+    const scale = Math.min(scaleX, scaleY);
+    
+    // Center the container
     container.style.transform = `scale(${scale})`;
     container.style.transformOrigin = 'top left';
+    container.style.height = `${1440 / scale}px`;  // Adjust container height to fill screen
     
-    console.log('Screen width:', screenWidth);
-    console.log('DPR:', dpr);
+    console.log('Screen dimensions:', screenWidth, 'x', screenHeight);
+    console.log('Scale factors:', scaleX, scaleY);
     console.log('Applied scale:', scale);
 }
 
