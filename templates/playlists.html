@@ -137,27 +137,14 @@ document.addEventListener('DOMContentLoaded', () => {
         currentPlaylist: JSON.parse(appData.dataset.currentPlaylist || 'null'),
         tracks: JSON.parse(appData.dataset.tracks || '[]'),
         lastSync: parseInt(appData.dataset.lastSync || '0'),
-        pageSize: parseInt(appData.dataset.pageSize || '20')
     };
     
-    // Debug log
-    console.log('Initial data loaded:', window.initialData);
-    
-    // Render the UI immediately
     document.addEventListener('DOMContentLoaded', function() {
-        // Initialize tooltips
-        initializeTooltips();
-        
-        // Render playlists
         console.log('Rendering playlists:', window.initialData.playlists);
         renderPlaylists(window.initialData.playlists);
         
-        // Render current playlist or welcome screen
-        if (window.initialData.currentPlaylist) {
-            renderPlaylist(window.initialData.currentPlaylist, window.initialData.tracks);
-        } else {
-            renderWelcome();
-        }
+        // Just render welcome screen initially
+        renderWelcome();
         
         // Update sync button state
         updateSyncButtonState();
@@ -219,9 +206,14 @@ function loadPlaylist(playlistId) {
                 renderPlaylistContent(playlistWithTracks);
             } else {
                 console.error('Error loading playlist:', data.error);
+                showToast('Failed to load playlist. Please try again.', true);
             }
         })
-        .catch(error => console.error('Error:', error));
+        .catch(error => {
+            showLoading(false);
+            console.error('Error:', error);
+            showToast('Failed to load playlist. Please try again.', true);
+        });
 }
 
 function renderPlaylists(playlists) {
@@ -823,49 +815,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
-
-function loadPlaylist(playlistId) {
-    fetch(`/playlist/${playlistId}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                console.log('Playlist data:', data);
-                renderPlaylist(data.playlist, data.tracks);
-            } else {
-                console.error('Error loading playlist:', data.error);
-                showToast('Failed to load playlist. Please try again.', true);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showToast('Failed to load playlist. Please try again.', true);
-        });
-}
-
-function initializeTooltips() {
-    const tooltipTriggerList = document.querySelectorAll('.playlist-item[title]');
-    tooltipTriggerList.forEach(element => {
-        const tooltip = new bootstrap.Tooltip(element, {
-            placement: 'right',
-            trigger: 'hover',
-            boundary: 'window',
-            popperConfig: {
-                strategy: 'absolute',
-                modifiers: [{
-                    name: 'offset',
-                    options: {
-                        offset: [0, 2]
-                    }
-                }]
-            }
-        });
-        
-        // Remove tooltip when clicking the playlist
-        element.addEventListener('click', () => {
-            tooltip.hide();
-        });
-    });
-}
 
 function updateSyncButtonState() {
     const syncButton = document.getElementById('syncButton');
