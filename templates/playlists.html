@@ -10,6 +10,13 @@
      data-page-size="{{ page_size|string if page_size else '20' }}">
 </div>
 
+<!-- Loading overlay - Move outside app-container -->
+<div id="loadingOverlay" class="loading-overlay">
+    <div class="spinner-border text-light" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+</div>
+
 <!-- App container for scaling -->
 <div class="app-container">
     <!-- Sidebar -->
@@ -85,16 +92,6 @@
             </div>
             <div class="toast-body" id="syncToastMessage">
             </div>
-        </div>
-    </div>
-
-    <!-- Loading overlay -->
-    <div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" style="display: none;">
-        <div class="text-white text-center">
-            <div class="spinner-border text-success mb-3" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-            <div id="syncProgress" class="text-success"></div>
         </div>
     </div>
 </div>
@@ -577,8 +574,16 @@ function showLoading(show = true) {
 }
 
 // Initialize loading state
-document.addEventListener('DOMContentLoaded', function() {
-    showLoading(false);  // Hide loading overlay on initial load
+document.addEventListener('DOMContentLoaded', () => {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) {
+        overlay.style.display = 'none';
+        
+        // Add flex display properties
+        overlay.style.display = 'none';
+        overlay.style.alignItems = 'center';
+        overlay.style.justifyContent = 'center';
+    }
 });
 
 function updateSyncButtonState() {
