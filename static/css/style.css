@@ -391,8 +391,34 @@ html, body {
     font-size: 12px;  /* 9 * 1.5 */
 }
 
+/* Loading overlay */
+#loadingOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 9999;
+}
+
+/* Toast styles */
+#toast {
+    position: fixed;
+    bottom: 32px;  /* 24 * 1.5 */
+    right: 32px;  /* 24 * 1.5 */
+    background-color: #333;
+    color: white;
+    padding: 16px 24px;  /* 12 * 1.5, 18 * 1.5 */
+    border-radius: 4px;  /* 3 * 1.5 */
+    display: none;
+    z-index: 9999;
+}
+
 /* Tooltip customization */
 .tooltip {
+    position: fixed;  /* Change from absolute to fixed */
+    z-index: 9999;
     font-size: 14px;  /* 10 * 1.5 */
 }
 
@@ -406,12 +432,6 @@ html, body {
 .bs-tooltip-auto[data-popper-placement^=right] .tooltip-arrow::before, 
 .bs-tooltip-end .tooltip-arrow::before {
     border-right-color: #383838;
-}
-
-/* Loading overlay */
-#loadingOverlay {
-    background: rgba(0, 0, 0, 0.7);
-    z-index: 9999;
 }
 
 /* Table styles */
@@ -528,25 +548,7 @@ html, body {
     justify-content: center;
 }
 
-/* Loading overlay */
-#loadingOverlay {
-    background: rgba(0, 0, 0, 0.7);
-    z-index: 9999;
-}
-
 /* Toast styles */
-#toast {
-    position: fixed;
-    bottom: 20px;  /* 15 * 1.5 */
-    right: 20px;  /* 15 * 1.5 */
-    background-color: #333;
-    color: white;
-    padding: 15px 25px;  /* 11 * 1.5, 19 * 1.5 */
-    border-radius: 5px;  /* 4 * 1.5 */
-    display: none;
-    z-index: 1000;
-}
-
 #toast.error {
     background-color: #dc3545;
 }

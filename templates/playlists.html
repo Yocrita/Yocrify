@@ -74,29 +74,26 @@
             <!-- Content will be loaded here -->
         </div>
     </div>
-</div>
-
-<!-- Toast notification -->
-<div class="toast-container position-fixed bottom-0 end-0 p-3">
-    <div id="syncToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
-        <div class="toast-header">
-            <i class="fas fa-info-circle me-2"></i>
-            <strong class="me-auto">Spotify App</strong>
-            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-        <div class="toast-body" id="syncToastMessage">
+    
+    <!-- Toast notification -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="syncToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong class="me-auto">Spotify App</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body" id="syncToastMessage">
+            </div>
         </div>
     </div>
-</div>
 
-<!-- Loading overlay -->
-<div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-none">
-    <div class="d-flex justify-content-center align-items-center h-100">
+    <!-- Loading overlay -->
+    <div id="loadingOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center" style="display: none;">
         <div class="text-white text-center">
             <div class="spinner-border text-success mb-3" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
-            <div class="mb-2">Synchronizing library...</div>
             <div id="syncProgress" class="text-success"></div>
         </div>
     </div>
