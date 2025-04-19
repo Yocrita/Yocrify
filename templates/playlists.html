@@ -849,8 +849,9 @@ function initializeTooltips() {
 // Scaling logic
 function updateScale() {
     const container = document.querySelector('.app-container');
-    const scale = Math.min(window.innerWidth / 3840, 1);
+    const scale = window.innerWidth / 3840;  
     container.style.transform = `scale(${scale})`;
+    container.style.transformOrigin = 'top left';
 }
 
 // Update scale on load and resize
