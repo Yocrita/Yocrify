@@ -849,9 +849,23 @@ function initializeTooltips() {
 // Scaling logic
 function updateScale() {
     const container = document.querySelector('.app-container');
-    const scale = window.innerWidth / 3840;  
+    
+    // Our reference is 4K at 150% DPR (2560px effective width)
+    const referenceWidth = 2560;
+    
+    // Get current effective width (actual width / DPR)
+    const effectiveWidth = window.innerWidth / window.devicePixelRatio;
+    
+    // Calculate scale based on effective widths
+    const scale = effectiveWidth / referenceWidth;
+    
     container.style.transform = `scale(${scale})`;
     container.style.transformOrigin = 'top left';
+    
+    console.log('Window inner width:', window.innerWidth);
+    console.log('Device pixel ratio:', window.devicePixelRatio);
+    console.log('Effective width:', effectiveWidth);
+    console.log('Applied scale:', scale);
 }
 
 // Update scale on load and resize
