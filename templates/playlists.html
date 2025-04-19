@@ -13,7 +13,7 @@
 <!-- App container for scaling -->
 <div class="app-container">
     <!-- Loading overlay -->
-    <div id="loadingOverlay" class="loading-overlay d-flex align-items-center justify-content-center">
+    <div id="loadingOverlay" class="loading-overlay d-flex align-items-center justify-content-center" style="display: none;">
         <div class="text-white text-center">
             <div class="spinner-border text-success mb-3" role="status">
                 <span class="visually-hidden">Loading...</span>
@@ -101,6 +101,19 @@
 </div>
 
 <script>
+// Initialize loading state immediately
+const overlay = document.getElementById('loadingOverlay');
+if (overlay) {
+    overlay.style.display = 'none';
+}
+
+function showLoading(show = true) {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) {
+        overlay.style.display = show ? 'flex' : 'none';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM Content Loaded');
     const searchInput = document.getElementById('playlistSearch');
