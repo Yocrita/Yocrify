@@ -850,24 +850,17 @@ function initializeTooltips() {
 function updateScale() {
     const container = document.querySelector('.app-container');
     
-    // Get the actual screen dimensions
+    // Get the actual screen width
     const screenWidth = window.innerWidth;
-    const screenHeight = window.innerHeight;
     
-    // Calculate scales for both dimensions
-    const scaleX = screenWidth / 2560;
-    const scaleY = screenHeight / 1440;  // Assuming 1440p height as base
+    // Calculate scale based only on width
+    const scale = screenWidth / 2560;
     
-    // Use the minimum scale to maintain aspect ratio and fit both dimensions
-    const scale = Math.min(scaleX, scaleY);
-    
-    // Center the container
+    // Apply scale
     container.style.transform = `scale(${scale})`;
     container.style.transformOrigin = 'top left';
-    container.style.height = `${1440 / scale}px`;  // Adjust container height to fill screen
     
-    console.log('Screen dimensions:', screenWidth, 'x', screenHeight);
-    console.log('Scale factors:', scaleX, scaleY);
+    console.log('Screen width:', screenWidth);
     console.log('Applied scale:', scale);
 }
 
