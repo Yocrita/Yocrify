@@ -10,15 +10,18 @@
      data-page-size="{{ page_size|string if page_size else '20' }}">
 </div>
 
-<!-- Loading overlay - Move outside app-container -->
-<div id="loadingOverlay" class="loading-overlay">
-    <div class="spinner-border text-light" role="status">
-        <span class="visually-hidden">Loading...</span>
-    </div>
-</div>
-
 <!-- App container for scaling -->
 <div class="app-container">
+    <!-- Loading overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="text-white text-center">
+            <div class="spinner-border text-success mb-3" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <div id="syncProgress" class="text-success"></div>
+        </div>
+    </div>
+
     <!-- Sidebar -->
     <div class="sidebar">
         <!-- Library header -->
@@ -578,33 +581,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const overlay = document.getElementById('loadingOverlay');
     if (overlay) {
         overlay.style.display = 'none';
-        
-        // Add flex display properties
-        overlay.style.display = 'none';
-        overlay.style.alignItems = 'center';
-        overlay.style.justifyContent = 'center';
     }
 });
 
-function updateSyncButtonState() {
-    const syncButton = document.getElementById('syncButton');
-    if (!syncButton) return;
-
-    const lastSync = parseInt(document.getElementById('appData').dataset.lastSync || '0');
-    const now = Math.floor(Date.now() / 1000);
+// Initialize loading state
+function updateScale() {
+    const container = document.querySelector('.app-container');
     
-    // Check if last sync was today
-    const lastSyncDate = new Date(lastSync * 1000).setHours(0,0,0,0);
-    const todayDate = new Date().setHours(0,0,0,0);
+    // Get the actual screen width
+    const screenWidth = window.innerWidth;
     
-    if (lastSyncDate === todayDate) {
-        syncButton.classList.add('sync-today');
-        syncButton.classList.remove('sync-old');
-    } else {
-        syncButton.classList.add('sync-old');
-        syncButton.classList.remove('sync-today');
-    }
+    // Calculate scale based only on width
+    const scale = screenWidth / 2560;
+    
+    // Apply scale
+    container.style.transform = `scale(${scale})`;
+    container.style.transformOrigin = 'top left';
+    
+    console.log('Screen width:', screenWidth);
+    console.log('Applied scale:', scale);
 }
+
+// Update scale on load and resize
+window.addEventListener('load', updateScale);
+window.addEventListener('resize', updateScale);
 
 function syncData() {
     showLoading(true);
@@ -853,27 +853,25 @@ function initializeTooltips() {
     });
 }
 
-// Scaling logic
-function updateScale() {
-    const container = document.querySelector('.app-container');
-    
-    // Get the actual screen width
-    const screenWidth = window.innerWidth;
-    
-    // Calculate scale based only on width
-    const scale = screenWidth / 2560;
-    
-    // Apply scale
-    container.style.transform = `scale(${scale})`;
-    container.style.transformOrigin = 'top left';
-    
-    console.log('Screen width:', screenWidth);
-    console.log('Applied scale:', scale);
-}
+function updateSyncButtonState() {
+    const syncButton = document.getElementById('syncButton');
+    if (!syncButton) return;
 
-// Update scale on load and resize
-window.addEventListener('load', updateScale);
-window.addEventListener('resize', updateScale);
+    const lastSync = parseInt(document.getElementById('appData').dataset.lastSync || '0');
+    const now = Math.floor(Date.now() / 1000);
+    
+    // Check if last sync was today
+    const lastSyncDate = new Date(lastSync * 1000).setHours(0,0,0,0);
+    const todayDate = new Date().setHours(0,0,0,0);
+    
+    if (lastSyncDate === todayDate) {
+        syncButton.classList.add('sync-today');
+        syncButton.classList.remove('sync-old');
+    } else {
+        syncButton.classList.add('sync-old');
+        syncButton.classList.remove('sync-today');
+    }
+}
 
 </script>
 
