@@ -572,9 +572,14 @@ function showToast(message, isError = false) {
 function showLoading(show = true) {
     const overlay = document.getElementById('loadingOverlay');
     if (overlay) {
-        overlay.classList.toggle('d-none', !show);
+        overlay.style.display = show ? 'flex' : 'none';
     }
 }
+
+// Initialize loading state
+document.addEventListener('DOMContentLoaded', function() {
+    showLoading(false);  // Hide loading overlay on initial load
+});
 
 function updateSyncButtonState() {
     const syncButton = document.getElementById('syncButton');
